@@ -40,3 +40,38 @@
 2. Confirme com o usuário em qual etapa estamos
 3. Para mudanças estruturais (stack, arquitetura), pergunte antes
 4. Para implementação dentro de uma etapa já definida, pode prosseguir
+
+---
+
+## Acervo de Referencia - agnostic-core
+
+Submodule em `.agnostic-core/` com skills, agents e workflows reutilizaveis.
+Consultar quando relevante para a tarefa em andamento.
+
+### Skills Relevantes (detectadas para este stack)
+
+Testes:
+  Unit Testing:          .agnostic-core/skills/testing/unit-testing.md
+  TDD Workflow:          .agnostic-core/skills/testing/tdd-workflow.md
+
+Performance:
+  Performance Audit:     .agnostic-core/skills/performance/performance-audit.md
+  Caching Strategies:    .agnostic-core/skills/performance/caching-strategies.md
+
+Deploy:
+  Pre-Deploy Checklist:  .agnostic-core/skills/devops/pre-deploy-checklist.md
+  Containerizacao:       .agnostic-core/skills/devops/containerizacao.md
+
+Qualidade:
+  Code Review:           .agnostic-core/skills/audit/code-review.md
+  Debugging:             .agnostic-core/skills/audit/systematic-debugging.md
+  Commit Conventions:    .agnostic-core/skills/git/commit-conventions.md
+
+Produtividade:
+  Claude Code Tips:      .agnostic-core/skills/workflow/claude-code-productivity.md
+  Context Management:    .agnostic-core/skills/workflow/context-management.md
+  Model Routing:         .agnostic-core/skills/ai/model-routing.md
+
+### Commands
+
+  Catalogo completo:     .agnostic-core/commands/claude-code/COMMANDS.md
