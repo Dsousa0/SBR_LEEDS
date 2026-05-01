@@ -55,20 +55,34 @@
 
 ## Estado Atual do Projeto
 
-**Etapa em andamento:** Etapa 1 — Setup do ambiente local
+**Etapa em andamento:** Etapa 2 — Importação da base da Receita Federal
 
 **O que já existe:**
-- `docker-compose.yml` com Postgres + App (FastAPI base) + pgAdmin
-- `app/main.py` com endpoints `/`, `/health` e `/docs`
-- `.env.example` com template das variáveis
-- `.gitignore` configurado
-- README com instruções
+- **Etapa 1 completa:**
+  - `docker-compose.yml` com Postgres + App (FastAPI base) + pgAdmin + serviço `etl`
+  - `app/main.py` com endpoints `/`, `/health` e `/docs`
+  - `.env.example` com template das variáveis
+  - `.gitignore` configurado
+  - README com instruções
 
-**Validação da Etapa 1 (critérios para concluir):**
-- [ ] `docker compose up -d --build` sobe os 3 containers
-- [ ] `http://localhost:8000/` retorna JSON de status
-- [ ] `http://localhost:8000/health` retorna `"database": "connected"`
-- [ ] `http://localhost:5050` (pgAdmin) abre e conecta no Postgres
+- **Etapa 2 — scripts implementados (aguardando execução):**
+  - `etl/schema.sql` — DDL completo das tabelas CNPJ
+  - `etl/download.py` — baixa ZIPs da Receita Federal
+  - `etl/importer.py` — importa via COPY FROM STDIN com streaming
+  - `etl/update_monthly.py` — orquestra atualização mensal
+  - `etl/validators.py` — queries de sanidade pós-importação
+
+**Para executar a Etapa 2:**
+```powershell
+docker compose --profile etl run --rm etl python download.py
+docker compose --profile etl run --rm etl python importer.py
+docker compose --profile etl run --rm etl python validators.py
+```
+
+**Critérios de conclusão da Etapa 2:**
+- [ ] `download.py` baixa os 37 arquivos sem erros
+- [ ] `importer.py` conclui sem erros
+- [ ] `validators.py` mostra contagens coerentes e busca < 1s
 
 ## Próximas Etapas
 

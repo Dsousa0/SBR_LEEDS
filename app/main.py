@@ -1,49 +1,38 @@
 """
-Prospec Leads - API principal
-Etapa 1: Setup inicial - valida que app + banco estão funcionando.
+Prospec Leads — API principal
 """
 from fastapi import FastAPI
-from sqlalchemy import create_engine, text
+from sqlalchemy import text
 import os
+
+from database import engine
+from routers.api import router as api_router
 
 app = FastAPI(
     title="Prospec Leads",
-    version="0.1.0",
+    version="0.2.0",
     description="Ferramenta de prospecção de leads via base pública da Receita Federal",
 )
 
-DATABASE_URL = os.getenv("DATABASE_URL")
-engine = create_engine(DATABASE_URL, pool_pre_ping=True)
+app.include_router(api_router)
 
 
 @app.get("/")
 def root():
-    """Endpoint raiz - retorna status básico da aplicação."""
     return {
         "app": "Prospec Leads",
-        "version": "0.1.0",
-        "status": "running",
-        "stage": "Etapa 1 - Setup inicial",
+        "version": "0.2.0",
         "docs": "/docs",
         "health": "/health",
+        "api": "/api",
     }
 
 
 @app.get("/health")
 def health():
-    """Verifica conectividade com o banco de dados."""
     try:
         with engine.connect() as conn:
-            result = conn.execute(text("SELECT version()"))
-            version = result.scalar()
-        return {
-            "status": "healthy",
-            "database": "connected",
-            "postgres_version": version,
-        }
+            version = conn.execute(text("SELECT version()")).scalar()
+        return {"status": "healthy", "database": "connected", "postgres_version": version}
     except Exception as e:
-        return {
-            "status": "unhealthy",
-            "database": "disconnected",
-            "error": str(e),
-        }
+        return {"status": "unhealthy", "database": "disconnected", "error": str(e)}

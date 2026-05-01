@@ -55,3 +55,22 @@ services:
       - postgres
     volumes:
       - ./data/pgadmin:/var/lib/pgadmin
+
+  # Serviço para rodar os scripts ETL da Etapa 2.
+  # Não sobe com 'docker compose up' — usar com --profile etl.
+  # Exemplos:
+  #   docker compose --profile etl run --rm etl python download.py
+  #   docker compose --profile etl run --rm etl python importer.py
+  #   docker compose --profile etl run --rm etl python validators.py
+  etl:
+    build: ./app
+    profiles: ["etl"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+    volumes:
+      - ./etl:/etl
+      - ./downloads:/downloads
+    working_dir: /etl

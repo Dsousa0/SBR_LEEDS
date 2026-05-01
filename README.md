@@ -6,12 +6,12 @@ Permite filtrar empresas por **estado, cidade e CNAE** (segmento de atuação), 
 
 ## Status do Projeto
 
-🟡 **Etapa 1 — Setup inicial do ambiente Docker** (em andamento)
+🟡 **Etapa 2 — Importação da base da Receita Federal** (pronta para executar)
 
 ### Roadmap
 
 - [x] **Etapa 1** — Setup do ambiente local (Docker + PostgreSQL + FastAPI base)
-- [ ] **Etapa 2** — Importação da base da Receita Federal (Brasil inteiro)
+- [x] **Etapa 2** — Scripts ETL implementados (download + import + validação)
 - [ ] **Etapa 3** — Backend completo (endpoints de busca, filtros, exportação)
 - [ ] **Etapa 4** — Frontend (HTMX + Jinja2 + TailwindCSS + Leaflet)
 - [ ] **Etapa 5** — Refinamento local e testes
@@ -109,16 +109,22 @@ docker compose exec postgres psql -U prospec -d prospec_db
 
 ```
 prospec-leads/
-├── docker-compose.yml      # Orquestração dos containers
+├── docker-compose.yml      # Orquestração dos containers (+ serviço etl)
 ├── .env.example            # Template de variáveis (commitado)
 ├── .env                    # Variáveis reais (NÃO commitado)
 ├── .gitignore
 ├── README.md
+├── SETUP.md                # Guia passo a passo para setup inicial
 ├── app/                    # Backend FastAPI
 │   ├── Dockerfile
 │   ├── requirements.txt
 │   └── main.py
-├── etl/                    # Scripts de importação da Receita (Etapa 2)
+├── etl/                    # Scripts de importação da Receita Federal (Etapa 2)
+│   ├── schema.sql          # DDL de todas as tabelas CNPJ
+│   ├── download.py         # Baixa os ZIPs mais recentes
+│   ├── importer.py         # Importa via COPY FROM STDIN
+│   ├── update_monthly.py   # Atualização mensal automatizada
+│   └── validators.py       # Queries de validação pós-importação
 ├── docs/                   # Documentação técnica
 │   ├── ARCHITECTURE.md
 │   ├── ETAPAS.md
@@ -127,6 +133,23 @@ prospec-leads/
     ├── postgres/
     └── pgadmin/
 ```
+
+## Etapa 2 — Importar a Base da Receita Federal
+
+Com os containers rodando, execute na ordem:
+
+```powershell
+# 1. Baixar os arquivos (~5 GB, pode levar 30-60 min dependendo da internet)
+docker compose --profile etl run --rm etl python download.py
+
+# 2. Importar para o PostgreSQL (~3-8h, recomendado deixar rodando à noite)
+docker compose --profile etl run --rm etl python importer.py
+
+# 3. Validar a importação
+docker compose --profile etl run --rm etl python validators.py
+```
+
+Consulte [`etl/README.md`](etl/README.md) para todas as opções disponíveis.
 
 ## Documentação Adicional
 
