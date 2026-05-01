@@ -1,0 +1,61 @@
+# ===========================================
+# Variáveis de ambiente (NUNCA commitar)
+# ===========================================
+.env
+.env.local
+.env.*.local
+
+# ===========================================
+# Dados persistidos (banco, downloads, cache)
+# ===========================================
+data/
+downloads/
+*.csv
+*.zip
+!docs/**/*.csv
+
+# ===========================================
+# Python
+# ===========================================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+env/
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+
+# ===========================================
+# IDEs e editores
+# ===========================================
+.vscode/
+!.vscode/settings.example.json
+!.vscode/extensions.json
+.idea/
+*.swp
+*.swo
+*~
+
+# ===========================================
+# Sistema operacional
+# ===========================================
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ===========================================
+# Logs
+# ===========================================
+*.log
+logs/
+
+# ===========================================
+# Docker
+# ===========================================
+docker-compose.override.yml
