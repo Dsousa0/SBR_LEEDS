@@ -1,0 +1,180 @@
+import json
+
+from fastapi import APIRouter, Depends, Form, Request
+from fastapi.responses import HTMLResponse
+from fastapi.templating import Jinja2Templates
+from sqlalchemy import text
+from sqlalchemy.orm import Session
+
+from database import get_db
+from routers.api import ATALHOS, _UFS, _build_where, _SELECT_LEADS, _resolve_cnaes, router as api_router
+from schemas import BuscarRequest, Stats, UF, Municipio, Cnae
+
+templates = Jinja2Templates(directory="templates")
+router = APIRouter()
+
+
+def _get_stats(db: Session) -> Stats:
+    total_estab = db.execute(text("SELECT COUNT(*) FROM estabelecimento")).scalar() or 0
+    total_emp = db.execute(text("SELECT COUNT(*) FROM empresa")).scalar() or 0
+    ultima = db.execute(
+        text("SELECT mes_referencia FROM importacao WHERE status='concluido' ORDER BY concluida_em DESC LIMIT 1")
+    ).scalar()
+    return Stats(
+        total_estabelecimentos=total_estab,
+        total_empresas=total_emp,
+        ultima_importacao=ultima,
+        distribuicao_uf=[],
+    )
+
+
+@router.get("/", response_class=HTMLResponse)
+def pagina_inicial(request: Request, db: Session = Depends(get_db)):
+    stats = _get_stats(db)
+    ufs = [UF(sigla=s, nome=n) for s, n in _UFS]
+    atalhos_view = [{"segmento": a["segmento"], "descricao": a["descricao"]} for a in ATALHOS]
+    return templates.TemplateResponse("index.html", {
+        "request": request,
+        "ufs": ufs,
+        "atalhos": atalhos_view,
+        "stats": stats,
+    })
+
+
+@router.get("/municipios-options", response_class=HTMLResponse)
+def municipios_options(request: Request, uf: str | None = None, db: Session = Depends(get_db)):
+    municipios = []
+    if uf:
+        rows = db.execute(
+            text("""
+                SELECT DISTINCT m.codigo, m.descricao
+                FROM municipio m
+                JOIN estabelecimento e ON e.municipio = m.codigo
+                WHERE e.uf = :uf
+                ORDER BY m.descricao
+            """),
+            {"uf": uf.upper()},
+        ).fetchall()
+        municipios = [Municipio(codigo=r.codigo, descricao=r.descricao) for r in rows]
+    return templates.TemplateResponse("partials/municipios_options.html", {
+        "request": request,
+        "municipios": municipios,
+    })
+
+
+@router.get("/cnaes-options", response_class=HTMLResponse)
+def cnaes_options(request: Request, q: str = "", db: Session = Depends(get_db)):
+    cnaes = []
+    if q.strip():
+        rows = db.execute(
+            text("SELECT codigo, descricao FROM cnae WHERE descricao ILIKE :q ORDER BY descricao LIMIT 15"),
+            {"q": f"%{q}%"},
+        ).fetchall()
+        cnaes = [Cnae(codigo=r.codigo, descricao=r.descricao) for r in rows]
+    return templates.TemplateResponse("partials/cnaes_options.html", {
+        "request": request,
+        "cnaes": cnaes,
+    })
+
+
+@router.post("/buscar", response_class=HTMLResponse)
+async def buscar_html(request: Request, db: Session = Depends(get_db)):
+    form = await request.form()
+
+    uf = form.get("uf") or None
+    municipio_codigo = form.get("municipio_codigo") or None
+    segmento = form.get("segmento") or None
+    cnaes_raw = form.get("cnaes") or ""
+    cnaes_lista = [c.strip() for c in cnaes_raw.split(",") if c.strip()] if cnaes_raw else None
+    apenas_ativas = form.get("apenas_ativas") == "true"
+    porte = form.get("porte") or None
+    page = int(form.get("page") or 1)
+    page_size = 50
+
+    req = BuscarRequest(
+        uf=uf,
+        municipio_codigo=municipio_codigo,
+        segmento=segmento,
+        cnaes=cnaes_lista,
+        apenas_ativas=apenas_ativas,
+        porte=porte,
+        page=page,
+        page_size=page_size,
+    )
+
+    from routers.api import buscar_leads, _row_to_lead
+    import math
+    cnaes = _resolve_cnaes(req)
+    where, params = _build_where(req, cnaes)
+
+    total = db.execute(
+        text(f"SELECT COUNT(*) FROM estabelecimento e LEFT JOIN empresa emp ON emp.cnpj_basico = e.cnpj_basico WHERE {where}"),
+        params,
+    ).scalar() or 0
+
+    offset = (page - 1) * page_size
+    rows = db.execute(
+        text(f"{_SELECT_LEADS} WHERE {where} ORDER BY emp.razao_social LIMIT :limit OFFSET :offset"),
+        {**params, "limit": page_size, "offset": offset},
+    ).fetchall()
+
+    from schemas import BuscarResponse, Lead
+    items = [_row_to_lead(r) for r in rows]
+
+    resultado = BuscarResponse(
+        total=total,
+        page=page,
+        page_size=page_size,
+        pages=math.ceil(total / page_size) if total else 0,
+        items=items,
+    )
+
+    leads_json = json.dumps([{
+        "cnpj": l.cnpj,
+        "razao_social": l.razao_social,
+        "nome_fantasia": l.nome_fantasia,
+        "logradouro": l.logradouro,
+        "tipo_logradouro": l.tipo_logradouro,
+        "numero": l.numero,
+        "municipio": l.municipio,
+        "uf": l.uf,
+        "cep": l.cep,
+        "ddd_1": l.ddd_1,
+        "telefone_1": l.telefone_1,
+    } for l in items], ensure_ascii=False)
+
+    return templates.TemplateResponse("partials/resultados.html", {
+        "request": request,
+        "resultado": resultado,
+        "leads_json": leads_json,
+    })
+
+
+@router.post("/exportar.csv")
+async def exportar_csv_form(request: Request, db: Session = Depends(get_db)):
+    from routers.api import exportar_csv
+    form = await request.form()
+    req = _form_to_req(form)
+    return exportar_csv(req, db)
+
+
+@router.post("/exportar.xlsx")
+async def exportar_xlsx_form(request: Request, db: Session = Depends(get_db)):
+    from routers.api import exportar_xlsx
+    form = await request.form()
+    req = _form_to_req(form)
+    return exportar_xlsx(req, db)
+
+
+def _form_to_req(form) -> BuscarRequest:
+    cnaes_raw = form.get("cnaes") or ""
+    return BuscarRequest(
+        uf=form.get("uf") or None,
+        municipio_codigo=form.get("municipio_codigo") or None,
+        segmento=form.get("segmento") or None,
+        cnaes=[c.strip() for c in cnaes_raw.split(",") if c.strip()] if cnaes_raw else None,
+        apenas_ativas=form.get("apenas_ativas") == "true",
+        porte=form.get("porte") or None,
+        page=1,
+        page_size=100000,
+    )

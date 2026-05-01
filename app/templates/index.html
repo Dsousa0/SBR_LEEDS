@@ -1,0 +1,265 @@
+{% extends "base.html" %}
+
+{% block title %}Prospec Leads — Busca de Leads{% endblock %}
+
+{% block content %}
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+  <!-- ========= PAINEL DE FILTROS ========= -->
+  <aside class="lg:col-span-1">
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-5 sticky top-4">
+      <h2 class="text-base font-semibold text-gray-800 mb-4 flex items-center gap-2">
+        <svg class="w-4 h-4 text-brand" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2a1 1 0 01-.293.707L13 13.414V19a1 1 0 01-.553.894l-4 2A1 1 0 017 21v-7.586L3.293 6.707A1 1 0 013 6V4z"/>
+        </svg>
+        Filtros
+      </h2>
+
+      <form id="filtros"
+            hx-post="/buscar"
+            hx-target="#resultado"
+            hx-swap="innerHTML"
+            hx-indicator="#spinner"
+            class="space-y-4">
+
+        <!-- Estado -->
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Estado</label>
+          <select name="uf" id="sel-uf"
+                  class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand"
+                  hx-get="/municipios-options"
+                  hx-target="#sel-municipio"
+                  hx-trigger="change"
+                  hx-include="[name='uf']">
+            <option value="">Todos os estados</option>
+            {% for uf in ufs %}
+            <option value="{{ uf.sigla }}">{{ uf.sigla }} — {{ uf.nome }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <!-- Município -->
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Município</label>
+          <select name="municipio_codigo" id="sel-municipio"
+                  class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand">
+            <option value="">Todos os municípios</option>
+          </select>
+        </div>
+
+        <!-- Segmento (atalhos) -->
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-2">Segmento</label>
+          <div class="grid grid-cols-2 gap-1.5" id="atalhos">
+            {% for a in atalhos %}
+            <button type="button"
+                    data-segmento="{{ a.segmento }}"
+                    onclick="selecionarSegmento(this)"
+                    class="atalho-btn text-xs px-2 py-1.5 rounded-lg border border-gray-200 text-gray-600 hover:border-brand hover:text-brand hover:bg-brand-light transition-colors text-left truncate">
+              {{ a.descricao }}
+            </button>
+            {% endfor %}
+          </div>
+          <input type="hidden" name="segmento" id="input-segmento" value="" />
+        </div>
+
+        <!-- CNAE manual -->
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">CNAE (busca livre)</label>
+          <input type="text" id="busca-cnae" placeholder="Ex: farmácia, padaria..."
+                 class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand"
+                 hx-get="/cnaes-options"
+                 hx-trigger="keyup changed delay:400ms"
+                 hx-target="#lista-cnaes"
+                 hx-include="[id='busca-cnae']"
+                 name="q" />
+          <div id="lista-cnaes" class="mt-1 space-y-1 max-h-32 overflow-y-auto"></div>
+          <input type="hidden" name="cnaes" id="input-cnaes" value="" />
+        </div>
+
+        <!-- Apenas ativas -->
+        <label class="flex items-center gap-2 cursor-pointer">
+          <input type="checkbox" name="apenas_ativas" value="true" checked
+                 class="rounded border-gray-300 text-brand focus:ring-brand" />
+          <span class="text-sm text-gray-700">Apenas empresas ativas</span>
+        </label>
+
+        <!-- Porte -->
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Porte</label>
+          <select name="porte"
+                  class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand">
+            <option value="">Todos</option>
+            <option value="01">MEI</option>
+            <option value="03">ME — Microempresa</option>
+            <option value="05">EPP — Pequeno Porte</option>
+            <option value="99">Demais</option>
+          </select>
+        </div>
+
+        <!-- Botão buscar -->
+        <button type="submit"
+                class="w-full bg-brand hover:bg-brand-dark text-white font-semibold py-2.5 rounded-lg transition-colors flex items-center justify-center gap-2">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+          </svg>
+          Buscar
+          <svg id="spinner" class="htmx-indicator animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+            <path class="opacity-75" fill="currentColor"
+              d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+          </svg>
+        </button>
+      </form>
+    </div>
+  </aside>
+
+  <!-- ========= ÁREA DE RESULTADOS ========= -->
+  <section class="lg:col-span-2 space-y-4">
+
+    <!-- Stats rápidas -->
+    <div class="grid grid-cols-3 gap-3">
+      <div class="bg-white rounded-xl border border-gray-200 p-4 text-center">
+        <div class="text-2xl font-bold text-brand">{{ "{:,}".format(stats.total_estabelecimentos).replace(",", ".") }}</div>
+        <div class="text-xs text-gray-500 mt-0.5">estabelecimentos</div>
+      </div>
+      <div class="bg-white rounded-xl border border-gray-200 p-4 text-center">
+        <div class="text-2xl font-bold text-brand">{{ "{:,}".format(stats.total_empresas).replace(",", ".") }}</div>
+        <div class="text-xs text-gray-500 mt-0.5">empresas</div>
+      </div>
+      <div class="bg-white rounded-xl border border-gray-200 p-4 text-center">
+        <div class="text-2xl font-bold text-brand">{{ stats.ultima_importacao or "—" }}</div>
+        <div class="text-xs text-gray-500 mt-0.5">última atualização</div>
+      </div>
+    </div>
+
+    <!-- Resultados (substituído pelo HTMX) -->
+    <div id="resultado">
+      <div class="bg-white rounded-xl border border-gray-200 p-12 text-center text-gray-400">
+        <svg class="w-12 h-12 mx-auto mb-3 opacity-30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+            d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+        </svg>
+        <p class="font-medium">Selecione os filtros e clique em Buscar</p>
+      </div>
+    </div>
+
+  </section>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// ------- Segmentos -------
+function selecionarSegmento(btn) {
+  const segmento = btn.dataset.segmento;
+  const inputSeg = document.getElementById('input-segmento');
+  const inputCnaes = document.getElementById('input-cnaes');
+
+  if (inputSeg.value === segmento) {
+    // deseleciona
+    inputSeg.value = '';
+    btn.classList.remove('border-brand', 'text-brand', 'bg-blue-50', 'font-semibold');
+  } else {
+    // seleciona novo
+    document.querySelectorAll('.atalho-btn').forEach(b =>
+      b.classList.remove('border-brand', 'text-brand', 'bg-blue-50', 'font-semibold'));
+    inputSeg.value = segmento;
+    inputCnaes.value = '';
+    btn.classList.add('border-brand', 'text-brand', 'bg-blue-50', 'font-semibold');
+  }
+}
+
+// ------- CNAEs via autocomplete -------
+function selecionarCnae(codigo, descricao) {
+  const input = document.getElementById('input-cnaes');
+  const busca = document.getElementById('busca-cnae');
+  const lista = document.getElementById('lista-cnaes');
+  const segInput = document.getElementById('input-segmento');
+
+  // remove segmento selecionado
+  segInput.value = '';
+  document.querySelectorAll('.atalho-btn').forEach(b =>
+    b.classList.remove('border-brand', 'text-brand', 'bg-blue-50', 'font-semibold'));
+
+  // adiciona CNAE (evita duplicatas)
+  const atuais = input.value ? input.value.split(',').filter(Boolean) : [];
+  if (!atuais.includes(codigo)) {
+    atuais.push(codigo);
+    input.value = atuais.join(',');
+  }
+  busca.value = '';
+  lista.innerHTML = '';
+
+  // mostra tags selecionadas
+  renderCnaeTags();
+}
+
+function renderCnaeTags() {
+  const input = document.getElementById('input-cnaes');
+  const container = document.getElementById('cnae-tags');
+  if (!container) return;
+  const cnaes = input.value ? input.value.split(',').filter(Boolean) : [];
+  container.innerHTML = cnaes.map(c =>
+    `<span class="inline-flex items-center gap-1 bg-blue-100 text-blue-800 text-xs px-2 py-0.5 rounded-full">
+      ${c}
+      <button type="button" onclick="removerCnae('${c}')" class="hover:text-red-600 font-bold">×</button>
+    </span>`
+  ).join('');
+}
+
+function removerCnae(codigo) {
+  const input = document.getElementById('input-cnaes');
+  const atuais = input.value ? input.value.split(',').filter(Boolean) : [];
+  input.value = atuais.filter(c => c !== codigo).join(',');
+  renderCnaeTags();
+}
+
+// Inicia tags ao carregar
+document.addEventListener('DOMContentLoaded', () => {
+  const tagsDiv = document.createElement('div');
+  tagsDiv.id = 'cnae-tags';
+  tagsDiv.className = 'flex flex-wrap gap-1 mt-1';
+  document.getElementById('input-cnaes').insertAdjacentElement('afterend', tagsDiv);
+});
+
+// ------- Exportação -------
+function exportar(formato) {
+  const form = document.getElementById('filtros');
+  const dados = coletarFiltros(form);
+  fetch(`/exportar.${formato}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(dados),
+  })
+  .then(r => r.blob())
+  .then(blob => {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `prospec-leads.${formato}`;
+    a.click();
+    URL.revokeObjectURL(url);
+  });
+}
+
+function coletarFiltros(form) {
+  const fd = new FormData(form);
+  const segmento = fd.get('segmento') || null;
+  const cnaesRaw = fd.get('cnaes') || '';
+  const cnaes = cnaesRaw ? cnaesRaw.split(',').filter(Boolean) : null;
+  return {
+    uf: fd.get('uf') || null,
+    municipio_codigo: fd.get('municipio_codigo') || null,
+    segmento: segmento || null,
+    cnaes: (!segmento && cnaes) ? cnaes : null,
+    apenas_ativas: fd.get('apenas_ativas') === 'true',
+    porte: fd.get('porte') || null,
+    page: 1,
+    page_size: 50,
+  };
+}
+</script>
+{% endblock %}

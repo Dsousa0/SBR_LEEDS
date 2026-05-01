@@ -64,3 +64,4 @@ docker-compose.override.yml
 # Claude Code (sessões locais)
 # ===========================================
 .claude/
+.playwright-mcp/

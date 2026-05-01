@@ -2,11 +2,12 @@
 Prospec Leads — API principal
 """
 from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
 from sqlalchemy import text
-import os
 
 from database import engine
 from routers.api import router as api_router
+from routers.frontend import router as frontend_router
 
 app = FastAPI(
     title="Prospec Leads",
@@ -15,17 +16,7 @@ app = FastAPI(
 )
 
 app.include_router(api_router)
-
-
-@app.get("/")
-def root():
-    return {
-        "app": "Prospec Leads",
-        "version": "0.2.0",
-        "docs": "/docs",
-        "health": "/health",
-        "api": "/api",
-    }
+app.include_router(frontend_router)
 
 
 @app.get("/health")
