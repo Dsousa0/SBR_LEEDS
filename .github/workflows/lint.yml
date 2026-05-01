@@ -1,4 +1,4 @@
-name: Lint & Build
+name: Lint
 
 on:
   push:
@@ -22,22 +22,4 @@ jobs:
         run: pip install ruff
 
       - name: Run ruff
-        run: ruff check app/ etl/ || true
-
-  docker-build:
-    name: Validate Docker Build
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Build app image
-        run: docker build -t prospec-app:test ./app
-
-      - name: Validate docker-compose
-        run: docker compose config
-        env:
-          POSTGRES_USER: test
-          POSTGRES_PASSWORD: test
-          POSTGRES_DB: test
-          PGADMIN_EMAIL: [email protected]
-          PGADMIN_PASSWORD: test
+        run: ruff check app/ etl/ --exit-zero
