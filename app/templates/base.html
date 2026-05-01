@@ -1,26 +1,33 @@
 <!DOCTYPE html>
-<html lang="pt-BR">
+<html lang="pt-BR" class="dark">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>{% block title %}Prospec Leads{% endblock %}</title>
+  <title>{% block title %}SBR LEED'S{% endblock %}</title>
 
-  <!-- TailwindCSS -->
   <script src="https://cdn.tailwindcss.com"></script>
-
-  <!-- HTMX -->
   <script src="https://unpkg.com/htmx.org@1.9.12"></script>
-
-  <!-- Leaflet -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
   <script>
     tailwind.config = {
+      darkMode: 'class',
       theme: {
         extend: {
           colors: {
-            brand: { DEFAULT: '#2563eb', dark: '#1d4ed8', light: '#dbeafe' }
+            orange: {
+              400: '#fb923c',
+              500: '#f97316',
+              600: '#ea580c',
+            },
+            surface: {
+              900: '#0f0f0f',
+              800: '#171717',
+              700: '#222222',
+              600: '#2e2e2e',
+              500: '#3a3a3a',
+            }
           }
         }
       }
@@ -28,29 +35,28 @@
   </script>
 
   <style>
-    #mapa { height: 480px; }
+    body { background-color: #0f0f0f; color: #e5e5e5; }
+    #mapa { height: 460px; }
     .htmx-indicator { display: none; }
     .htmx-request .htmx-indicator { display: inline-block; }
     .htmx-request.htmx-indicator { display: inline-block; }
+    select option { background: #222; color: #e5e5e5; }
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: #171717; }
+    ::-webkit-scrollbar-thumb { background: #3a3a3a; border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: #f97316; }
   </style>
 </head>
-<body class="bg-gray-50 min-h-screen">
+<body class="min-h-screen">
 
-  <!-- Cabeçalho -->
-  <header class="bg-brand shadow-sm">
-    <div class="max-w-7xl mx-auto px-4 py-3 flex items-center gap-3">
-      <svg class="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-          d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/>
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-          d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/>
-      </svg>
-      <span class="text-white font-bold text-xl tracking-tight">Prospec Leads</span>
-      <span class="text-blue-200 text-sm ml-1">— Receita Federal CNPJ</span>
+  <header class="border-b border-[#2e2e2e]">
+    <div class="max-w-7xl mx-auto px-5 py-3 flex items-center gap-2">
+      <span class="text-orange-500 font-black text-lg tracking-tight">SBR</span>
+      <span class="text-white font-light text-lg tracking-widest">LEED'S</span>
     </div>
   </header>
 
-  <main class="max-w-7xl mx-auto px-4 py-6">
+  <main class="max-w-7xl mx-auto px-5 py-5">
     {% block content %}{% endblock %}
   </main>
 

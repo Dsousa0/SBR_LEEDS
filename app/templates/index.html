@@ -1,15 +1,15 @@
 {% extends "base.html" %}
 
-{% block title %}Prospec Leads — Busca de Leads{% endblock %}
+{% block title %}SBR LEED'S — Busca de Leads{% endblock %}
 
 {% block content %}
 <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
   <!-- ========= PAINEL DE FILTROS ========= -->
   <aside class="lg:col-span-1">
-    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-5 sticky top-4">
-      <h2 class="text-base font-semibold text-gray-800 mb-4 flex items-center gap-2">
-        <svg class="w-4 h-4 text-brand" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <div class="bg-[#171717] rounded-xl border border-[#2e2e2e] p-5 sticky top-4">
+      <h2 class="text-sm font-semibold text-[#aaa] mb-4 flex items-center gap-2 uppercase tracking-widest">
+        <svg class="w-4 h-4 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
             d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2a1 1 0 01-.293.707L13 13.414V19a1 1 0 01-.553.894l-4 2A1 1 0 017 21v-7.586L3.293 6.707A1 1 0 013 6V4z"/>
         </svg>
@@ -25,9 +25,9 @@
 
         <!-- Estado -->
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">Estado</label>
+          <label class="block text-xs font-medium text-[#888] mb-1 uppercase tracking-wide">Estado</label>
           <select name="uf" id="sel-uf"
-                  class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand"
+                  class="w-full rounded-lg bg-[#222] border border-[#3a3a3a] px-3 py-2 text-sm text-[#e5e5e5] focus:outline-none focus:border-orange-500 transition-colors"
                   hx-get="/municipios-options"
                   hx-target="#sel-municipio"
                   hx-trigger="change"
@@ -41,22 +41,22 @@
 
         <!-- Município -->
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">Município</label>
+          <label class="block text-xs font-medium text-[#888] mb-1 uppercase tracking-wide">Município</label>
           <select name="municipio_codigo" id="sel-municipio"
-                  class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand">
+                  class="w-full rounded-lg bg-[#222] border border-[#3a3a3a] px-3 py-2 text-sm text-[#e5e5e5] focus:outline-none focus:border-orange-500 transition-colors">
             <option value="">Todos os municípios</option>
           </select>
         </div>
 
         <!-- Segmento (atalhos) -->
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-2">Segmento</label>
+          <label class="block text-xs font-medium text-[#888] mb-2 uppercase tracking-wide">Segmento</label>
           <div class="grid grid-cols-2 gap-1.5" id="atalhos">
             {% for a in atalhos %}
             <button type="button"
                     data-segmento="{{ a.segmento }}"
                     onclick="selecionarSegmento(this)"
-                    class="atalho-btn text-xs px-2 py-1.5 rounded-lg border border-gray-200 text-gray-600 hover:border-brand hover:text-brand hover:bg-brand-light transition-colors text-left truncate">
+                    class="atalho-btn text-xs px-2 py-1.5 rounded-lg border border-[#3a3a3a] text-[#aaa] hover:border-orange-500 hover:text-orange-500 transition-colors text-left truncate">
               {{ a.descricao }}
             </button>
             {% endfor %}
@@ -66,30 +66,30 @@
 
         <!-- CNAE manual -->
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">CNAE (busca livre)</label>
+          <label class="block text-xs font-medium text-[#888] mb-1 uppercase tracking-wide">CNAE (busca livre)</label>
           <input type="text" id="busca-cnae" placeholder="Ex: farmácia, padaria..."
-                 class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand"
+                 class="w-full rounded-lg bg-[#222] border border-[#3a3a3a] px-3 py-2 text-sm text-[#e5e5e5] placeholder-[#555] focus:outline-none focus:border-orange-500 transition-colors"
                  hx-get="/cnaes-options"
                  hx-trigger="keyup changed delay:400ms"
                  hx-target="#lista-cnaes"
                  hx-include="[id='busca-cnae']"
                  name="q" />
-          <div id="lista-cnaes" class="mt-1 space-y-1 max-h-32 overflow-y-auto"></div>
+          <div id="lista-cnaes" class="mt-1 space-y-0.5 max-h-32 overflow-y-auto"></div>
           <input type="hidden" name="cnaes" id="input-cnaes" value="" />
         </div>
 
         <!-- Apenas ativas -->
         <label class="flex items-center gap-2 cursor-pointer">
           <input type="checkbox" name="apenas_ativas" value="true" checked
-                 class="rounded border-gray-300 text-brand focus:ring-brand" />
-          <span class="text-sm text-gray-700">Apenas empresas ativas</span>
+                 class="rounded border-[#3a3a3a] bg-[#222] accent-orange-500" />
+          <span class="text-sm text-[#aaa]">Apenas empresas ativas</span>
         </label>
 
         <!-- Porte -->
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">Porte</label>
+          <label class="block text-xs font-medium text-[#888] mb-1 uppercase tracking-wide">Porte</label>
           <select name="porte"
-                  class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand">
+                  class="w-full rounded-lg bg-[#222] border border-[#3a3a3a] px-3 py-2 text-sm text-[#e5e5e5] focus:outline-none focus:border-orange-500 transition-colors">
             <option value="">Todos</option>
             <option value="01">MEI</option>
             <option value="03">ME — Microempresa</option>
@@ -100,7 +100,7 @@
 
         <!-- Botão buscar -->
         <button type="submit"
-                class="w-full bg-brand hover:bg-brand-dark text-white font-semibold py-2.5 rounded-lg transition-colors flex items-center justify-center gap-2">
+                class="w-full bg-orange-500 hover:bg-orange-600 text-white font-semibold py-2.5 rounded-lg transition-colors flex items-center justify-center gap-2">
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
               d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
@@ -121,28 +121,28 @@
 
     <!-- Stats rápidas -->
     <div class="grid grid-cols-3 gap-3">
-      <div class="bg-white rounded-xl border border-gray-200 p-4 text-center">
-        <div class="text-2xl font-bold text-brand">{{ "{:,}".format(stats.total_estabelecimentos).replace(",", ".") }}</div>
-        <div class="text-xs text-gray-500 mt-0.5">estabelecimentos</div>
+      <div class="bg-[#171717] rounded-xl border border-[#2e2e2e] p-4 text-center">
+        <div class="text-2xl font-bold text-orange-500">{{ "{:,}".format(stats.total_estabelecimentos).replace(",", ".") }}</div>
+        <div class="text-xs text-[#666] mt-0.5 uppercase tracking-wide">estabelecimentos</div>
       </div>
-      <div class="bg-white rounded-xl border border-gray-200 p-4 text-center">
-        <div class="text-2xl font-bold text-brand">{{ "{:,}".format(stats.total_empresas).replace(",", ".") }}</div>
-        <div class="text-xs text-gray-500 mt-0.5">empresas</div>
+      <div class="bg-[#171717] rounded-xl border border-[#2e2e2e] p-4 text-center">
+        <div class="text-2xl font-bold text-orange-500">{{ "{:,}".format(stats.total_empresas).replace(",", ".") }}</div>
+        <div class="text-xs text-[#666] mt-0.5 uppercase tracking-wide">empresas</div>
       </div>
-      <div class="bg-white rounded-xl border border-gray-200 p-4 text-center">
-        <div class="text-2xl font-bold text-brand">{{ stats.ultima_importacao or "—" }}</div>
-        <div class="text-xs text-gray-500 mt-0.5">última atualização</div>
+      <div class="bg-[#171717] rounded-xl border border-[#2e2e2e] p-4 text-center">
+        <div class="text-2xl font-bold text-orange-500">{{ stats.ultima_importacao or "—" }}</div>
+        <div class="text-xs text-[#666] mt-0.5 uppercase tracking-wide">última atualização</div>
       </div>
     </div>
 
     <!-- Resultados (substituído pelo HTMX) -->
     <div id="resultado">
-      <div class="bg-white rounded-xl border border-gray-200 p-12 text-center text-gray-400">
+      <div class="bg-[#171717] rounded-xl border border-[#2e2e2e] p-12 text-center text-[#555]">
         <svg class="w-12 h-12 mx-auto mb-3 opacity-30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
             d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
         </svg>
-        <p class="font-medium">Selecione os filtros e clique em Buscar</p>
+        <p class="font-medium text-[#666]">Selecione os filtros e clique em Buscar</p>
       </div>
     </div>
 
@@ -159,16 +159,14 @@ function selecionarSegmento(btn) {
   const inputCnaes = document.getElementById('input-cnaes');
 
   if (inputSeg.value === segmento) {
-    // deseleciona
     inputSeg.value = '';
-    btn.classList.remove('border-brand', 'text-brand', 'bg-blue-50', 'font-semibold');
+    btn.classList.remove('border-orange-500', 'text-orange-500', 'bg-[#222]', 'font-semibold');
   } else {
-    // seleciona novo
     document.querySelectorAll('.atalho-btn').forEach(b =>
-      b.classList.remove('border-brand', 'text-brand', 'bg-blue-50', 'font-semibold'));
+      b.classList.remove('border-orange-500', 'text-orange-500', 'bg-[#222]', 'font-semibold'));
     inputSeg.value = segmento;
     inputCnaes.value = '';
-    btn.classList.add('border-brand', 'text-brand', 'bg-blue-50', 'font-semibold');
+    btn.classList.add('border-orange-500', 'text-orange-500', 'bg-[#222]', 'font-semibold');
   }
 }
 
@@ -179,12 +177,10 @@ function selecionarCnae(codigo, descricao) {
   const lista = document.getElementById('lista-cnaes');
   const segInput = document.getElementById('input-segmento');
 
-  // remove segmento selecionado
   segInput.value = '';
   document.querySelectorAll('.atalho-btn').forEach(b =>
-    b.classList.remove('border-brand', 'text-brand', 'bg-blue-50', 'font-semibold'));
+    b.classList.remove('border-orange-500', 'text-orange-500', 'bg-[#222]', 'font-semibold'));
 
-  // adiciona CNAE (evita duplicatas)
   const atuais = input.value ? input.value.split(',').filter(Boolean) : [];
   if (!atuais.includes(codigo)) {
     atuais.push(codigo);
@@ -193,7 +189,6 @@ function selecionarCnae(codigo, descricao) {
   busca.value = '';
   lista.innerHTML = '';
 
-  // mostra tags selecionadas
   renderCnaeTags();
 }
 
@@ -203,9 +198,9 @@ function renderCnaeTags() {
   if (!container) return;
   const cnaes = input.value ? input.value.split(',').filter(Boolean) : [];
   container.innerHTML = cnaes.map(c =>
-    `<span class="inline-flex items-center gap-1 bg-blue-100 text-blue-800 text-xs px-2 py-0.5 rounded-full">
+    `<span class="inline-flex items-center gap-1 bg-[#2e2e2e] text-orange-400 text-xs px-2 py-0.5 rounded-full border border-[#3a3a3a]">
       ${c}
-      <button type="button" onclick="removerCnae('${c}')" class="hover:text-red-600 font-bold">×</button>
+      <button type="button" onclick="removerCnae('${c}')" class="hover:text-white font-bold">×</button>
     </span>`
   ).join('');
 }
@@ -217,7 +212,6 @@ function removerCnae(codigo) {
   renderCnaeTags();
 }
 
-// Inicia tags ao carregar
 document.addEventListener('DOMContentLoaded', () => {
   const tagsDiv = document.createElement('div');
   tagsDiv.id = 'cnae-tags';
@@ -228,38 +222,17 @@ document.addEventListener('DOMContentLoaded', () => {
 // ------- Exportação -------
 function exportar(formato) {
   const form = document.getElementById('filtros');
-  const dados = coletarFiltros(form);
-  fetch(`/exportar.${formato}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(dados),
-  })
-  .then(r => r.blob())
-  .then(blob => {
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `prospec-leads.${formato}`;
-    a.click();
-    URL.revokeObjectURL(url);
-  });
-}
-
-function coletarFiltros(form) {
   const fd = new FormData(form);
-  const segmento = fd.get('segmento') || null;
-  const cnaesRaw = fd.get('cnaes') || '';
-  const cnaes = cnaesRaw ? cnaesRaw.split(',').filter(Boolean) : null;
-  return {
-    uf: fd.get('uf') || null,
-    municipio_codigo: fd.get('municipio_codigo') || null,
-    segmento: segmento || null,
-    cnaes: (!segmento && cnaes) ? cnaes : null,
-    apenas_ativas: fd.get('apenas_ativas') === 'true',
-    porte: fd.get('porte') || null,
-    page: 1,
-    page_size: 50,
-  };
+  fetch(`/exportar.${formato}`, { method: 'POST', body: fd })
+    .then(r => r.blob())
+    .then(blob => {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `sbr-leads.${formato}`;
+      a.click();
+      URL.revokeObjectURL(url);
+    });
 }
 </script>
 {% endblock %}
