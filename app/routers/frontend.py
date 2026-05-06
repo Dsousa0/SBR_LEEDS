@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import text
+from sqlalchemy.exc import ProgrammingError
 from sqlalchemy.orm import Session
 
 from database import get_db
@@ -15,11 +16,20 @@ router = APIRouter()
 
 
 def _get_stats(db: Session) -> Stats:
-    total_estab = db.execute(text("SELECT COUNT(*) FROM estabelecimento")).scalar() or 0
-    total_emp = db.execute(text("SELECT COUNT(*) FROM empresa")).scalar() or 0
-    ultima = db.execute(
-        text("SELECT mes_referencia FROM importacao WHERE status='concluido' ORDER BY concluida_em DESC LIMIT 1")
-    ).scalar()
+    try:
+        total_estab = db.execute(text("SELECT COUNT(*) FROM estabelecimento")).scalar() or 0
+        total_emp = db.execute(text("SELECT COUNT(*) FROM empresa")).scalar() or 0
+        ultima = db.execute(
+            text("SELECT mes_referencia FROM importacao WHERE status='concluido' ORDER BY concluida_em DESC LIMIT 1")
+        ).scalar()
+    except ProgrammingError:
+        db.rollback()
+        return Stats(
+            total_estabelecimentos=0,
+            total_empresas=0,
+            ultima_importacao=None,
+            distribuicao_uf=[],
+        )
     return Stats(
         total_estabelecimentos=total_estab,
         total_empresas=total_emp,

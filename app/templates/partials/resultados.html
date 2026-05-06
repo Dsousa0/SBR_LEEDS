@@ -148,8 +148,9 @@
 {% endif %}
 
 <script>
+(function () {
 // ---- Abas ----
-function mostrarAba(aba) {
+window.mostrarAba = function(aba) {
   document.getElementById('painel-tabela').classList.toggle('hidden', aba !== 'tabela');
   document.getElementById('painel-mapa').classList.toggle('hidden', aba !== 'mapa');
   document.getElementById('aba-tabela').className =
@@ -160,13 +161,18 @@ function mostrarAba(aba) {
     (aba === 'mapa' ? 'border-orange-500 text-orange-500' : 'border-transparent text-[#666] hover:text-[#aaa]');
 
   if (aba === 'mapa') iniciarMapa();
-}
+};
 
 // ---- Mapa (Leaflet + Nominatim geocoding) ----
 const leads = {{ leads_json | safe }};
 
-function iniciarMapa() {
-  if (window.mapaLeaflet) return;
+window.mapaLeaflet = null;
+
+window.iniciarMapa = function() {
+  if (window.mapaLeaflet) {
+    window.mapaLeaflet.remove();
+    window.mapaLeaflet = null;
+  }
   window.mapaLeaflet = L.map('mapa').setView([-15.77, -47.93], 5);
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     attribution: '© OpenStreetMap contributors'
@@ -192,7 +198,8 @@ function iniciarMapa() {
       .catch(() => {});
     }, i * 1100);
   });
-}
+};
+})();
 </script>
 
 {% endif %}
