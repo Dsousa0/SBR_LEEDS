@@ -1,0 +1,57 @@
+# docker-compose.prod.yml — Produção (VPS Hostinger)
+#
+# Uso:
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+#
+# Diferenças em relação ao dev:
+#   - Postgres NÃO expõe porta para o host (acessível só internamente)
+#   - pgAdmin removido
+#   - App roda sem --reload, com workers múltiplos
+#   - Caddy faz proxy reverso com HTTPS automático (Let's Encrypt)
+#   - Limites de memória definidos
+#
+# Pré-requisitos no servidor:
+#   1. Criar .env com APP_ENV=production e DOMAIN=seudominio.com
+#   2. Abrir portas 80 e 443 no firewall
+#   3. Apontar DNS do domínio para o IP da VPS
+
+services:
+  postgres:
+    ports: !reset []  # Remove a porta exposta do dev
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+
+  app:
+    ports: !reset []  # Porta interna; Caddy faz o proxy
+    volumes:
+      - ./app:/code:ro  # Read-only em produção
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --workers 2
+    environment:
+      APP_ENV: production
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+
+  pgadmin:
+    profiles: ["pgadmin"]  # Não sobe por padrão em prod
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: prospec_caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./data/caddy:/data
+      - ./data/caddy-config:/config
+    depends_on:
+      - app
+    deploy:
+      resources:
+        limits:
+          memory: 128M

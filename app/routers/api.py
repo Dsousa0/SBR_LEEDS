@@ -1,33 +1,20 @@
 import csv
 import io
-import math
 from collections.abc import Iterator
 
 import openpyxl
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, Query
 from fastapi.responses import StreamingResponse
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
+from database import get_db
+from schemas import AtalhosCnae, BuscarRequest, BuscarResponse, Cnae, Lead, Municipio, Stats, UF
+from service import ATALHOS, PORTES, SELECT_LEADS, build_where, contar, resolve_cnaes, row_to_lead, buscar
+
 LIMITE_EXPORTACAO = 50_000
 
-from database import get_db
-from schemas import (
-    AtalhosCnae,
-    BuscarRequest,
-    BuscarResponse,
-    Cnae,
-    Lead,
-    Municipio,
-    Stats,
-    UF,
-)
-
 router = APIRouter(prefix="/api")
-
-# ---------------------------------------------------------------------------
-# Dados estáticos
-# ---------------------------------------------------------------------------
 
 _UFS = [
     ("AC", "Acre"), ("AL", "Alagoas"), ("AP", "Amapá"), ("AM", "Amazonas"),
@@ -41,129 +28,8 @@ _UFS = [
     ("TO", "Tocantins"),
 ]
 
-ATALHOS = [
-    {"segmento": "farmacia",     "descricao": "Farmácias e drogarias",        "cnaes": ["4771701", "4771702", "4771703"]},
-    {"segmento": "restaurante",  "descricao": "Restaurantes e lanchonetes",   "cnaes": ["5611201", "5611203", "5611204", "5611205"]},
-    {"segmento": "oficina",      "descricao": "Oficinas mecânicas",           "cnaes": ["4520001", "4520002", "4520003", "4520004", "4520005"]},
-    {"segmento": "supermercado", "descricao": "Supermercados e mercados",     "cnaes": ["4711301", "4711302"]},
-    {"segmento": "padaria",      "descricao": "Padarias e confeitarias",      "cnaes": ["1091102", "4721102"]},
-    {"segmento": "salao",        "descricao": "Salões de beleza e barbearias","cnaes": ["9602501", "9602502"]},
-    {"segmento": "clinica",      "descricao": "Clínicas médicas",             "cnaes": ["8630501", "8630502", "8630503"]},
-    {"segmento": "academia",     "descricao": "Academias de ginástica",       "cnaes": ["9313100"]},
-    {"segmento": "advocacia",    "descricao": "Escritórios de advocacia",     "cnaes": ["6911701"]},
-    {"segmento": "contabilidade","descricao": "Contabilidade e auditoria",    "cnaes": ["6920601", "6920602"]},
-]
-
-_ATALHOS_MAP = {a["segmento"]: a["cnaes"] for a in ATALHOS}
-
-PORTES = {
-    "00": "Não informado",
-    "01": "MEI",
-    "03": "ME",
-    "05": "EPP",
-    "99": "Demais",
-}
-
-
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
-def _resolve_cnaes(req: BuscarRequest) -> list[str] | None:
-    """Retorna lista de CNAEs resolvidos (segmento ou explícitos)."""
-    if req.segmento:
-        cnaes = _ATALHOS_MAP.get(req.segmento)
-        if not cnaes:
-            raise HTTPException(400, f"Segmento desconhecido: {req.segmento}")
-        return cnaes
-    return req.cnaes or None
-
-
-def _build_where(req: BuscarRequest, cnaes: list[str] | None) -> tuple[str, dict]:
-    """Constrói cláusula WHERE e dicionário de parâmetros para a busca."""
-    conditions = ["1=1"]
-    params: dict = {}
-
-    if req.uf:
-        conditions.append("e.uf = :uf")
-        params["uf"] = req.uf.upper()
-
-    if req.municipio_codigo:
-        conditions.append("e.municipio = :municipio")
-        params["municipio"] = req.municipio_codigo
-
-    if cnaes:
-        conditions.append("e.cnae_fiscal_principal = ANY(:cnaes)")
-        params["cnaes"] = cnaes
-
-    if req.apenas_ativas:
-        conditions.append("e.situacao_cadastral = '02'")
-
-    if req.porte:
-        conditions.append("emp.porte = :porte")
-        params["porte"] = req.porte
-
-    return " AND ".join(conditions), params
-
-
-_SELECT_LEADS = """
-    SELECT
-        e.cnpj_basico || e.cnpj_ordem || e.cnpj_dv AS cnpj,
-        emp.razao_social,
-        e.nome_fantasia,
-        e.cnae_fiscal_principal,
-        c.descricao   AS cnae_descricao,
-        e.tipo_logradouro,
-        e.logradouro,
-        e.numero,
-        e.complemento,
-        e.bairro,
-        e.cep,
-        e.uf,
-        m.descricao   AS municipio,
-        e.ddd_1,
-        e.telefone_1,
-        e.ddd_2,
-        e.telefone_2,
-        e.correio_eletronico,
-        e.situacao_cadastral,
-        emp.porte,
-        emp.capital_social
-    FROM estabelecimento e
-    LEFT JOIN empresa    emp ON emp.cnpj_basico = e.cnpj_basico
-    LEFT JOIN municipio  m   ON m.codigo        = e.municipio
-    LEFT JOIN cnae       c   ON c.codigo        = e.cnae_fiscal_principal
-"""
-
-
-def _row_to_lead(row) -> Lead:
-    return Lead(
-        cnpj=row.cnpj or "",
-        razao_social=row.razao_social,
-        nome_fantasia=row.nome_fantasia,
-        cnae_principal=row.cnae_fiscal_principal,
-        cnae_descricao=row.cnae_descricao,
-        tipo_logradouro=row.tipo_logradouro,
-        logradouro=row.logradouro,
-        numero=row.numero,
-        complemento=row.complemento,
-        bairro=row.bairro,
-        cep=row.cep,
-        uf=row.uf,
-        municipio=row.municipio,
-        ddd_1=row.ddd_1,
-        telefone_1=row.telefone_1,
-        ddd_2=row.ddd_2,
-        telefone_2=row.telefone_2,
-        email=row.correio_eletronico,
-        situacao=row.situacao_cadastral,
-        porte=row.porte,
-        capital_social=float(row.capital_social) if row.capital_social else None,
-    )
-
 
 def _leads_to_rows(leads: list[Lead]) -> list[list]:
-    """Converte lista de leads para linhas (header + dados) para CSV/XLSX."""
     header = [
         "CNPJ", "Razão Social", "Nome Fantasia", "CNAE", "Descrição CNAE",
         "Logradouro", "Número", "Complemento", "Bairro", "CEP",
@@ -171,18 +37,54 @@ def _leads_to_rows(leads: list[Lead]) -> list[list]:
         "E-mail", "Situação", "Porte", "Capital Social",
     ]
     rows = [header]
-    for l in leads:
-        logradouro = f"{l.tipo_logradouro or ''} {l.logradouro or ''}".strip()
+    for lead in leads:
+        logradouro = f"{lead.tipo_logradouro or ''} {lead.logradouro or ''}".strip()
         rows.append([
-            l.cnpj, l.razao_social, l.nome_fantasia,
-            l.cnae_principal, l.cnae_descricao,
-            logradouro, l.numero, l.complemento, l.bairro, l.cep,
-            l.uf, l.municipio,
-            l.ddd_1, l.telefone_1, l.ddd_2, l.telefone_2,
-            l.email, l.situacao, PORTES.get(l.porte or "", l.porte),
-            l.capital_social,
+            lead.cnpj, lead.razao_social, lead.nome_fantasia,
+            lead.cnae_principal, lead.cnae_descricao,
+            logradouro, lead.numero, lead.complemento, lead.bairro, lead.cep,
+            lead.uf, lead.municipio,
+            lead.ddd_1, lead.telefone_1, lead.ddd_2, lead.telefone_2,
+            lead.email, lead.situacao, PORTES.get(lead.porte or "", lead.porte),
+            lead.capital_social,
         ])
     return rows
+
+
+def _stream_csv(req: BuscarRequest, db: Session) -> Iterator[bytes]:
+    cnaes = resolve_cnaes(req)
+    where, params = build_where(req, cnaes)
+
+    buf = io.StringIO()
+    writer = csv.writer(buf, delimiter=";")
+
+    writer.writerow([
+        "CNPJ", "Razão Social", "Nome Fantasia", "CNAE", "Descrição CNAE",
+        "Logradouro", "Número", "Complemento", "Bairro", "CEP",
+        "UF", "Município", "DDD 1", "Telefone 1", "DDD 2", "Telefone 2",
+        "E-mail", "Situação", "Porte", "Capital Social",
+    ])
+    yield buf.getvalue().encode("utf-8-sig")
+
+    result = db.execute(
+        text(f"{SELECT_LEADS} WHERE {where} ORDER BY emp.razao_social LIMIT :limit"),
+        {**params, "limit": LIMITE_EXPORTACAO},
+    )
+    for row in result:
+        lead = row_to_lead(row)
+        logradouro = f"{lead.tipo_logradouro or ''} {lead.logradouro or ''}".strip()
+        buf.seek(0)
+        buf.truncate()
+        writer.writerow([
+            lead.cnpj, lead.razao_social, lead.nome_fantasia,
+            lead.cnae_principal, lead.cnae_descricao,
+            logradouro, lead.numero, lead.complemento, lead.bairro, lead.cep,
+            lead.uf, lead.municipio,
+            lead.ddd_1, lead.telefone_1, lead.ddd_2, lead.telefone_2,
+            lead.email, lead.situacao, PORTES.get(lead.porte or "", lead.porte),
+            lead.capital_social,
+        ])
+        yield buf.getvalue().encode("utf-8")
 
 
 # ---------------------------------------------------------------------------
@@ -234,100 +136,24 @@ def listar_atalhos():
 
 
 # ---------------------------------------------------------------------------
-# Busca de leads
+# Busca e exportação
 # ---------------------------------------------------------------------------
 
 @router.post("/buscar", response_model=BuscarResponse)
 def buscar_leads(req: BuscarRequest, db: Session = Depends(get_db)):
-    cnaes = _resolve_cnaes(req)
-    where, params = _build_where(req, cnaes)
-
-    total = db.execute(
-        text(f"SELECT COUNT(*) FROM estabelecimento e LEFT JOIN empresa emp ON emp.cnpj_basico = e.cnpj_basico WHERE {where}"),
-        params,
-    ).scalar() or 0
-
-    page_size = max(1, min(req.page_size, 200))
-    page = max(1, req.page)
-    offset = (page - 1) * page_size
-
-    rows = db.execute(
-        text(f"{_SELECT_LEADS} WHERE {where} ORDER BY emp.razao_social LIMIT :limit OFFSET :offset"),
-        {**params, "limit": page_size, "offset": offset},
-    ).fetchall()
-
-    return BuscarResponse(
-        total=total,
-        page=page,
-        page_size=page_size,
-        pages=math.ceil(total / page_size) if total else 0,
-        items=[_row_to_lead(r) for r in rows],
-    )
-
-
-# ---------------------------------------------------------------------------
-# Exportação
-# ---------------------------------------------------------------------------
-
-def _contar_exportacao(req: BuscarRequest, db: Session) -> int:
-    cnaes = _resolve_cnaes(req)
-    where, params = _build_where(req, cnaes)
-    return db.execute(
-        text(f"SELECT COUNT(*) FROM estabelecimento e LEFT JOIN empresa emp ON emp.cnpj_basico = e.cnpj_basico WHERE {where}"),
-        params,
-    ).scalar() or 0
-
-
-def _stream_csv(req: BuscarRequest, db: Session) -> Iterator[bytes]:
-    """Gera o CSV linha a linha sem carregar tudo na memória."""
-    cnaes = _resolve_cnaes(req)
-    where, params = _build_where(req, cnaes)
-
-    buf = io.StringIO()
-    writer = csv.writer(buf, delimiter=";")
-
-    header = [
-        "CNPJ", "Razão Social", "Nome Fantasia", "CNAE", "Descrição CNAE",
-        "Logradouro", "Número", "Complemento", "Bairro", "CEP",
-        "UF", "Município", "DDD 1", "Telefone 1", "DDD 2", "Telefone 2",
-        "E-mail", "Situação", "Porte", "Capital Social",
-    ]
-    writer.writerow(header)
-    yield buf.getvalue().encode("utf-8-sig")
-
-    result = db.execute(
-        text(f"{_SELECT_LEADS} WHERE {where} ORDER BY emp.razao_social LIMIT :limit"),
-        {**params, "limit": LIMITE_EXPORTACAO},
-    )
-    for row in result:
-        lead = _row_to_lead(row)
-        logradouro = f"{lead.tipo_logradouro or ''} {lead.logradouro or ''}".strip()
-        buf.seek(0)
-        buf.truncate()
-        writer.writerow([
-            lead.cnpj, lead.razao_social, lead.nome_fantasia,
-            lead.cnae_principal, lead.cnae_descricao,
-            logradouro, lead.numero, lead.complemento, lead.bairro, lead.cep,
-            lead.uf, lead.municipio,
-            lead.ddd_1, lead.telefone_1, lead.ddd_2, lead.telefone_2,
-            lead.email, lead.situacao, PORTES.get(lead.porte or "", lead.porte),
-            lead.capital_social,
-        ])
-        yield buf.getvalue().encode("utf-8")
+    return buscar(req, db)
 
 
 @router.post("/exportar.csv")
 def exportar_csv(req: BuscarRequest, db: Session = Depends(get_db)):
-    total = _contar_exportacao(req, db)
-    truncado = total > LIMITE_EXPORTACAO
-
+    total = contar(req, db)
     return StreamingResponse(
         _stream_csv(req, db),
         media_type="text/csv",
         headers={
             "Content-Disposition": "attachment; filename=prospec-leads.csv",
             "X-Total-Disponivel": str(total),
-            "X-Truncado": str(truncado).lower(),
+            "X-Truncado": str(total > LIMITE_EXPORTACAO).lower(),
         },
     )
 
@@ -336,19 +162,16 @@ def exportar_csv(req: BuscarRequest, db: Session = Depends(get_db)):
 def exportar_xlsx(req: BuscarRequest, db: Session = Depends(get_db)):
     from openpyxl.styles import Font
 
-    cnaes = _resolve_cnaes(req)
-    where, params = _build_where(req, cnaes)
-    total = db.execute(
-        text(f"SELECT COUNT(*) FROM estabelecimento e LEFT JOIN empresa emp ON emp.cnpj_basico = e.cnpj_basico WHERE {where}"),
-        params,
-    ).scalar() or 0
+    cnaes = resolve_cnaes(req)
+    where, params = build_where(req, cnaes)
+    total = contar(req, db)
 
     rows = db.execute(
-        text(f"{_SELECT_LEADS} WHERE {where} ORDER BY emp.razao_social LIMIT :limit"),
+        text(f"{SELECT_LEADS} WHERE {where} ORDER BY emp.razao_social LIMIT :limit"),
         {**params, "limit": LIMITE_EXPORTACAO},
     ).fetchall()
 
-    tabela = _leads_to_rows([_row_to_lead(r) for r in rows])
+    tabela = _leads_to_rows([row_to_lead(r) for r in rows])
 
     wb = openpyxl.Workbook()
     ws = wb.active

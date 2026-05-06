@@ -8,8 +8,9 @@ from sqlalchemy.exc import ProgrammingError
 from sqlalchemy.orm import Session
 
 from database import get_db
-from routers.api import ATALHOS, _UFS, _build_where, _SELECT_LEADS, _resolve_cnaes, router as api_router
+from routers.api import _UFS
 from schemas import BuscarRequest, Stats, UF, Municipio, Cnae
+from service import ATALHOS, buscar
 
 templates = Jinja2Templates(directory="templates")
 router = APIRouter()
@@ -112,32 +113,8 @@ async def buscar_html(request: Request, db: Session = Depends(get_db)):
         page_size=page_size,
     )
 
-    from routers.api import buscar_leads, _row_to_lead
-    import math
-    cnaes = _resolve_cnaes(req)
-    where, params = _build_where(req, cnaes)
-
-    total = db.execute(
-        text(f"SELECT COUNT(*) FROM estabelecimento e LEFT JOIN empresa emp ON emp.cnpj_basico = e.cnpj_basico WHERE {where}"),
-        params,
-    ).scalar() or 0
-
-    offset = (page - 1) * page_size
-    rows = db.execute(
-        text(f"{_SELECT_LEADS} WHERE {where} ORDER BY emp.razao_social LIMIT :limit OFFSET :offset"),
-        {**params, "limit": page_size, "offset": offset},
-    ).fetchall()
-
-    from schemas import BuscarResponse, Lead
-    items = [_row_to_lead(r) for r in rows]
-
-    resultado = BuscarResponse(
-        total=total,
-        page=page,
-        page_size=page_size,
-        pages=math.ceil(total / page_size) if total else 0,
-        items=items,
-    )
+    resultado = buscar(req, db)
+    items = resultado.items
 
     leads_json = json.dumps([{
         "cnpj": l.cnpj,
