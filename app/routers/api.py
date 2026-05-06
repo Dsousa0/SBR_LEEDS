@@ -1,12 +1,15 @@
 import csv
 import io
 import math
+from collections.abc import Iterator
 
 import openpyxl
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from sqlalchemy import text
 from sqlalchemy.orm import Session
+
+LIMITE_EXPORTACAO = 50_000
 
 from database import get_db
 from schemas import (
@@ -266,46 +269,92 @@ def buscar_leads(req: BuscarRequest, db: Session = Depends(get_db)):
 # Exportação
 # ---------------------------------------------------------------------------
 
-def _exportar_todos(req: BuscarRequest, db: Session) -> list[Lead]:
+def _contar_exportacao(req: BuscarRequest, db: Session) -> int:
     cnaes = _resolve_cnaes(req)
     where, params = _build_where(req, cnaes)
-    rows = db.execute(
-        text(f"{_SELECT_LEADS} WHERE {where} ORDER BY emp.razao_social LIMIT 100000"),
+    return db.execute(
+        text(f"SELECT COUNT(*) FROM estabelecimento e LEFT JOIN empresa emp ON emp.cnpj_basico = e.cnpj_basico WHERE {where}"),
         params,
-    ).fetchall()
-    return [_row_to_lead(r) for r in rows]
+    ).scalar() or 0
+
+
+def _stream_csv(req: BuscarRequest, db: Session) -> Iterator[bytes]:
+    """Gera o CSV linha a linha sem carregar tudo na memória."""
+    cnaes = _resolve_cnaes(req)
+    where, params = _build_where(req, cnaes)
+
+    buf = io.StringIO()
+    writer = csv.writer(buf, delimiter=";")
+
+    header = [
+        "CNPJ", "Razão Social", "Nome Fantasia", "CNAE", "Descrição CNAE",
+        "Logradouro", "Número", "Complemento", "Bairro", "CEP",
+        "UF", "Município", "DDD 1", "Telefone 1", "DDD 2", "Telefone 2",
+        "E-mail", "Situação", "Porte", "Capital Social",
+    ]
+    writer.writerow(header)
+    yield buf.getvalue().encode("utf-8-sig")
+
+    result = db.execute(
+        text(f"{_SELECT_LEADS} WHERE {where} ORDER BY emp.razao_social LIMIT :limit"),
+        {**params, "limit": LIMITE_EXPORTACAO},
+    )
+    for row in result:
+        lead = _row_to_lead(row)
+        logradouro = f"{lead.tipo_logradouro or ''} {lead.logradouro or ''}".strip()
+        buf.seek(0)
+        buf.truncate()
+        writer.writerow([
+            lead.cnpj, lead.razao_social, lead.nome_fantasia,
+            lead.cnae_principal, lead.cnae_descricao,
+            logradouro, lead.numero, lead.complemento, lead.bairro, lead.cep,
+            lead.uf, lead.municipio,
+            lead.ddd_1, lead.telefone_1, lead.ddd_2, lead.telefone_2,
+            lead.email, lead.situacao, PORTES.get(lead.porte or "", lead.porte),
+            lead.capital_social,
+        ])
+        yield buf.getvalue().encode("utf-8")
 
 
 @router.post("/exportar.csv")
 def exportar_csv(req: BuscarRequest, db: Session = Depends(get_db)):
-    leads = _exportar_todos(req, db)
-    tabela = _leads_to_rows(leads)
-
-    buf = io.StringIO()
-    writer = csv.writer(buf, delimiter=";")
-    writer.writerows(tabela)
-    buf.seek(0)
+    total = _contar_exportacao(req, db)
+    truncado = total > LIMITE_EXPORTACAO
 
     return StreamingResponse(
-        iter([buf.getvalue().encode("utf-8-sig")]),
+        _stream_csv(req, db),
         media_type="text/csv",
-        headers={"Content-Disposition": "attachment; filename=prospec-leads.csv"},
+        headers={
+            "Content-Disposition": "attachment; filename=prospec-leads.csv",
+            "X-Total-Disponivel": str(total),
+            "X-Truncado": str(truncado).lower(),
+        },
     )
 
 
 @router.post("/exportar.xlsx")
 def exportar_xlsx(req: BuscarRequest, db: Session = Depends(get_db)):
-    leads = _exportar_todos(req, db)
-    tabela = _leads_to_rows(leads)
+    from openpyxl.styles import Font
+
+    cnaes = _resolve_cnaes(req)
+    where, params = _build_where(req, cnaes)
+    total = db.execute(
+        text(f"SELECT COUNT(*) FROM estabelecimento e LEFT JOIN empresa emp ON emp.cnpj_basico = e.cnpj_basico WHERE {where}"),
+        params,
+    ).scalar() or 0
+
+    rows = db.execute(
+        text(f"{_SELECT_LEADS} WHERE {where} ORDER BY emp.razao_social LIMIT :limit"),
+        {**params, "limit": LIMITE_EXPORTACAO},
+    ).fetchall()
+
+    tabela = _leads_to_rows([_row_to_lead(r) for r in rows])
 
     wb = openpyxl.Workbook()
     ws = wb.active
     ws.title = "Leads"
     for row in tabela:
         ws.append(row)
-
-    # Cabeçalho em negrito
-    from openpyxl.styles import Font
     for cell in ws[1]:
         cell.font = Font(bold=True)
 
@@ -316,7 +365,11 @@ def exportar_xlsx(req: BuscarRequest, db: Session = Depends(get_db)):
     return StreamingResponse(
         buf,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        headers={"Content-Disposition": "attachment; filename=prospec-leads.xlsx"},
+        headers={
+            "Content-Disposition": "attachment; filename=prospec-leads.xlsx",
+            "X-Total-Disponivel": str(total),
+            "X-Truncado": str(total > LIMITE_EXPORTACAO).lower(),
+        },
     )
 
 
