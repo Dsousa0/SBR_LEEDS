@@ -168,35 +168,60 @@ const leads = {{ leads_json | safe }};
 
 window.mapaLeaflet = null;
 
+function _nominatim(q) {
+  return fetch(
+    `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)}&limit=1`,
+    { headers: { 'User-Agent': 'prospec-leads/1.0' } }
+  ).then(r => r.json());
+}
+
+function _cidadeUnica() {
+  if (!leads.length) return null;
+  const { municipio, uf } = leads[0];
+  if (!municipio || !uf) return null;
+  const todasIguais = leads.every(l => l.municipio === municipio && l.uf === uf);
+  return todasIguais ? { municipio, uf } : null;
+}
+
 window.iniciarMapa = function() {
   if (window.mapaLeaflet) {
     window.mapaLeaflet.remove();
     window.mapaLeaflet = null;
   }
-  window.mapaLeaflet = L.map('mapa').setView([-15.77, -47.93], 5);
+
+  const mapa = L.map('mapa').setView([-15.77, -47.93], 5);
+  window.mapaLeaflet = mapa;
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     attribution: '© OpenStreetMap contributors'
-  }).addTo(window.mapaLeaflet);
+  }).addTo(mapa);
 
+  // Centraliza na cidade se todos os resultados forem do mesmo município
+  const cidade = _cidadeUnica();
+  if (cidade) {
+    _nominatim(`${cidade.municipio}, ${cidade.uf}, Brasil`)
+      .then(data => {
+        if (data.length) mapa.setView([+data[0].lat, +data[0].lon], 12);
+      })
+      .catch(() => {});
+  }
+
+  // Marcadores individuais (endereço por endereço, respeitando rate limit do Nominatim)
   leads.forEach((lead, i) => {
-    if (!lead.cep || !lead.municipio || !lead.uf) return;
+    if (!lead.municipio || !lead.uf) return;
     const label = lead.nome_fantasia || lead.razao_social || '';
     const end = [lead.tipo_logradouro, lead.logradouro, lead.numero, lead.municipio + '/' + lead.uf]
       .filter(Boolean).join(' ');
 
     setTimeout(() => {
-      const q = encodeURIComponent(`${lead.logradouro || ''}, ${lead.numero || ''}, ${lead.municipio}, ${lead.uf}, Brasil`);
-      fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${q}&limit=1`,
-        { headers: { 'User-Agent': 'prospec-leads/1.0' } })
-      .then(r => r.json())
-      .then(data => {
-        if (!data.length) return;
-        const { lat, lon } = data[0];
-        const popup = `<b>${label}</b><br>${end}<br>${lead.ddd_1 ? '(' + lead.ddd_1 + ') ' + lead.telefone_1 : ''}`;
-        L.marker([lat, lon]).addTo(window.mapaLeaflet).bindPopup(popup);
-      })
-      .catch(() => {});
-    }, i * 1100);
+      const q = `${lead.logradouro || ''}, ${lead.numero || ''}, ${lead.municipio}, ${lead.uf}, Brasil`;
+      _nominatim(q)
+        .then(data => {
+          if (!data.length) return;
+          const popup = `<b>${label}</b><br>${end}<br>${lead.ddd_1 ? '(' + lead.ddd_1 + ') ' + lead.telefone_1 : ''}`;
+          L.marker([+data[0].lat, +data[0].lon]).addTo(mapa).bindPopup(popup);
+        })
+        .catch(() => {});
+    }, i * 600);
   });
 };
 })();
