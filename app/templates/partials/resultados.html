@@ -182,8 +182,13 @@
 (function () {
 const leads = {{ leads_json | safe }};
 
-const CONCORRENCIA_GEOCODE = 10;
-const CACHE_PREFIXO = 'pm_cep_';
+const CONCORRENCIA_GEOCODE = 6;  // Photon pede uso comedido (~1/s/usuário)
+const CACHE_PREFIXO = 'pm_';      // pm_addr_<cnpj> e pm_cep_<cep>
+
+// Bounding box aproximado do Brasil, pra rejeitar resultados fora do país
+// (Photon às vezes mata-mata pra Marrocos, etc.)
+const BRASIL_LAT_MIN = -34, BRASIL_LAT_MAX = 6;
+const BRASIL_LON_MIN = -74, BRASIL_LON_MAX = -34;
 
 function _esc(s) {
   return String(s == null ? '' : s)
@@ -200,59 +205,93 @@ function _icone(ehCliente) {
   });
 }
 
-function _cacheGet(cep) {
+function _cacheGet(chave) {
   try {
-    const v = localStorage.getItem(CACHE_PREFIXO + cep);
+    const v = localStorage.getItem(chave);
     return v ? JSON.parse(v) : null;
   } catch (_) { return null; }
 }
 
-function _cacheSet(cep, valor) {
-  const k = CACHE_PREFIXO + cep;
+function _cacheSet(chave, valor) {
   const v = JSON.stringify(valor);
-  try { localStorage.setItem(k, v); }
+  try { localStorage.setItem(chave, v); }
   catch (_) {
-    // Quota cheia: limpa o próprio prefixo e tenta de novo (nunca toca em
-    // outras chaves do app/site).
     try {
       Object.keys(localStorage)
         .filter(x => x.startsWith(CACHE_PREFIXO))
         .forEach(x => localStorage.removeItem(x));
-      localStorage.setItem(k, v);
+      localStorage.setItem(chave, v);
     } catch (_) {}
   }
 }
 
-// Busca coordenadas pelo CEP via AwesomeAPI (retorna lat/lng diretamente).
-// Cacheia hits e misses em localStorage para evitar refetch.
-async function _coordsPorCep(cep) {
-  const limpo = (cep || '').replace(/\D/g, '');
-  if (limpo.length !== 8) return null;
+function _dentroBrasil(lat, lon) {
+  return lat >= BRASIL_LAT_MIN && lat <= BRASIL_LAT_MAX &&
+         lon >= BRASIL_LON_MIN && lon <= BRASIL_LON_MAX;
+}
 
-  const cached = _cacheGet(limpo);
+// Geocoder primário: por endereço completo via Photon (open-source/komoot).
+// CORS habilitado, dados OSM, atinge precisão de logradouro+nº quando disponível.
+async function _coordsPorEndereco(lead) {
+  if (!lead.cnpj) return null;
+  const chave = 'pm_addr_' + lead.cnpj;
+  const cached = _cacheGet(chave);
   if (cached !== null) return cached.lat ? cached : null;
 
+  const partes = [lead.tipo_logradouro, lead.logradouro, lead.numero,
+                  lead.municipio, lead.uf, 'Brasil'].filter(Boolean);
+  if (partes.length < 3) return null;
+  const q = partes.join(', ');
+
   try {
-    const r = await fetch(`https://cep.awesomeapi.com.br/json/${limpo}`);
-    if (!r.ok) {
-      _cacheSet(limpo, { lat: null });
-      return null;
-    }
+    const r = await fetch(
+      `https://photon.komoot.io/api/?q=${encodeURIComponent(q)}&limit=1&lang=pt`
+    );
+    if (!r.ok) { _cacheSet(chave, { lat: null }); return null; }
     const d = await r.json();
-    if (!d.lat || !d.lng) {
-      _cacheSet(limpo, { lat: null });
+    const f = d.features && d.features[0];
+    if (!f || !f.geometry || !f.geometry.coordinates) {
+      _cacheSet(chave, { lat: null });
       return null;
     }
-    const coords = { lat: parseFloat(d.lat), lon: parseFloat(d.lng) };
-    if (isNaN(coords.lat) || isNaN(coords.lon)) {
-      _cacheSet(limpo, { lat: null });
+    const [lon, lat] = f.geometry.coordinates;
+    if (!isFinite(lat) || !isFinite(lon) || !_dentroBrasil(lat, lon)) {
+      _cacheSet(chave, { lat: null });
       return null;
     }
-    _cacheSet(limpo, coords);
+    const coords = { lat, lon };
+    _cacheSet(chave, coords);
     return coords;
   } catch (_) {
     return null;
   }
+}
+
+// Fallback: por CEP via AwesomeAPI (precisão a nível de CEP/quadra).
+async function _coordsPorCep(cep) {
+  const limpo = (cep || '').replace(/\D/g, '');
+  if (limpo.length !== 8) return null;
+  const chave = 'pm_cep_' + limpo;
+  const cached = _cacheGet(chave);
+  if (cached !== null) return cached.lat ? cached : null;
+
+  try {
+    const r = await fetch(`https://cep.awesomeapi.com.br/json/${limpo}`);
+    if (!r.ok) { _cacheSet(chave, { lat: null }); return null; }
+    const d = await r.json();
+    if (!d.lat || !d.lng) { _cacheSet(chave, { lat: null }); return null; }
+    const coords = { lat: parseFloat(d.lat), lon: parseFloat(d.lng) };
+    if (isNaN(coords.lat) || isNaN(coords.lon)) {
+      _cacheSet(chave, { lat: null }); return null;
+    }
+    _cacheSet(chave, coords);
+    return coords;
+  } catch (_) { return null; }
+}
+
+// Resolve em duas etapas: tenta endereço completo, cai pro CEP se falhar
+async function _resolverCoords(lead) {
+  return (await _coordsPorEndereco(lead)) || (await _coordsPorCep(lead.cep));
 }
 
 // Executa worker em até N items simultâneos
@@ -333,10 +372,11 @@ window.iniciarMapa = async function() {
   });
   mapa.addLayer(cluster);
 
-  // Geocode em paralelo via AwesomeAPI (CEP → coordenadas, com cache local)
+  // Geocode em paralelo: tenta logradouro+número via Photon (preciso),
+  // cai pro CEP via AwesomeAPI quando o endereço não bate
   await _comConcorrencia(leads, CONCORRENCIA_GEOCODE, async (lead) => {
     if (window.mapaLeaflet !== mapa) return;
-    const coords = await _coordsPorCep(lead.cep);
+    const coords = await _resolverCoords(lead);
     if (!coords || window.mapaLeaflet !== mapa) return;
     const label = lead.nome_fantasia || lead.razao_social || '';
     const end = [lead.tipo_logradouro, lead.logradouro, lead.numero, lead.municipio + '/' + lead.uf]
