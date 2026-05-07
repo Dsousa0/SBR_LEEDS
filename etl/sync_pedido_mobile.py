@@ -11,9 +11,15 @@ Uso (dentro do container etl):
 import logging
 import os
 import sys
+from pathlib import Path
 
-# Permite importar de /code (onde o app está montado no container)
-sys.path.insert(0, "/code")
+# Resolve o diretório `app/` relativo a este script — funciona dentro do container
+# Docker (onde fica em /code) e também se rodar direto do host.
+_APP_DIR = Path(__file__).resolve().parent.parent / "app"
+if _APP_DIR.exists():
+    sys.path.insert(0, str(_APP_DIR))
+else:
+    sys.path.insert(0, "/code")  # fallback dentro do container etl
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker

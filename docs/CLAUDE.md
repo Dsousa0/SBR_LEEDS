@@ -37,6 +37,19 @@
 - **Implicação:** ~5GB compactados, ~25GB descompactados, ~50-70GB no PostgreSQL após índices, 3-8h de importação
 - **Filtro padrão recomendado:** Apenas estabelecimentos com situação cadastral "ATIVA" (reduz volume em ~50%)
 
+### Integração Pedido Mobile
+- **Escolhida:** Sync periódico (botão manual no UI) da base de clientes via `GET /clienteintegracao/versao` da API do Pedido Mobile
+- **Motivo:** Permite cruzar leads da Receita com a base de clientes ativos dos vendedores e exibir badge "Cliente • <vendedor>" na listagem
+- **Apenas leitura:** `app/pedido_mobile.py` jamais chama POST/PUT/DELETE na API
+- **Versionamento incremental:** API expõe `ultimaVersao`; sync só baixa deltas
+- **Credenciais:** apenas em `.env` (gitignored), nunca commitadas
+
+### Geocodificação no mapa
+- **Escolhida:** AwesomeAPI (`cep.awesomeapi.com.br/json/{cep}`) para CEP → lat/lng
+- **Descartadas:** Nominatim/OpenStreetMap (CORS bloqueado no browser, rate limit de 1 req/s), BrasilAPI (não retorna coordenadas)
+- **Tier gratuito da AwesomeAPI:** 1.000 consultas/dia/IP — suficiente porque o cache em `localStorage` evita refetch dos mesmos CEPs
+- **Auto-zoom:** após geocode, `mapa.fitBounds()` enquadra todos os marcadores
+
 ### Funcionalidades do MVP
 **INCLUI:**
 - Filtros: estado, cidade, CNAE (com atalhos pré-definidos + autocomplete por descrição)
@@ -55,34 +68,27 @@
 
 ## Estado Atual do Projeto
 
-**Etapa em andamento:** Etapa 2 — Importação da base da Receita Federal
+**Etapa em andamento:** Etapa 5 — Refinamento (segurança, performance, integrações)
 
-**O que já existe:**
-- **Etapa 1 completa:**
-  - `docker-compose.yml` com Postgres + App (FastAPI base) + pgAdmin + serviço `etl`
-  - `app/main.py` com endpoints `/`, `/health` e `/docs`
-  - `.env.example` com template das variáveis
-  - `.gitignore` configurado
-  - README com instruções
+**O que já está pronto:**
 
-- **Etapa 2 — scripts implementados (aguardando execução):**
-  - `etl/schema.sql` — DDL completo das tabelas CNPJ
-  - `etl/download.py` — baixa ZIPs da Receita Federal
-  - `etl/importer.py` — importa via COPY FROM STDIN com streaming
-  - `etl/update_monthly.py` — orquestra atualização mensal
-  - `etl/validators.py` — queries de sanidade pós-importação
+- **Etapa 1 (setup Docker)** — `docker-compose.yml`, FastAPI base, pgAdmin, `.env.example`
+- **Etapa 2 (importação CNPJ)** — base da Receita Federal importada (segmento `farmacia` ativo: 128k estabelecimentos + 97k empresas)
+- **Etapa 3 (API REST)** — endpoints `/api/buscar`, `/api/exportar.csv`, `/api/exportar.xlsx`, `/api/ufs`, `/api/municipios`, `/api/cnaes`, `/api/stats`
+- **Etapa 4 (frontend)** — HTMX + Jinja2 + TailwindCSS, mapa Leaflet, autocomplete CNAE, dark theme
+- **Integração Pedido Mobile** — sync de clientes via API (`POST /sync-clientes`), badge "Cliente • <vendedor>" na listagem, filtro `status_cliente`, colunas extras nos exports
+- **Refinamentos da Etapa 5 já feitos:**
+  - Limite de 50k registros na exportação (CSV streaming + XLSX)
+  - SRI nos CDNs (HTMX + Leaflet)
+  - `app/service.py` consolidando lógica de busca (sem duplicação api.py/frontend.py)
+  - Pydantic settings validando `DATABASE_URL` na startup
+  - `docker-compose.prod.yml` + `Caddyfile` para deploy VPS
+  - Geocode do mapa via AwesomeAPI (paralelo + cache localStorage), `fitBounds` automático
+  - Fix do erro 404 do sync incremental do Pedido Mobile (sem clientes alterados)
+  - Lock contra syncs simultâneos do Pedido Mobile
+  - Escape XSS em popups do Leaflet e no `leads_json`
 
-**Para executar a Etapa 2:**
-```powershell
-docker compose --profile etl run --rm etl python download.py
-docker compose --profile etl run --rm etl python importer.py
-docker compose --profile etl run --rm etl python validators.py
-```
-
-**Critérios de conclusão da Etapa 2:**
-- [ ] `download.py` baixa os 37 arquivos sem erros
-- [ ] `importer.py` conclui sem erros
-- [ ] `validators.py` mostra contagens coerentes e busca < 1s
+**Próxima etapa:** Etapa 6 — Deploy VPS Hostinger (Caddy + cron mensal + backup)
 
 ## Próximas Etapas
 

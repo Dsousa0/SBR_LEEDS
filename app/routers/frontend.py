@@ -162,7 +162,7 @@ async def buscar_html(request: Request, db: Session = Depends(get_db)):
         "cep": l.cep,
         "ddd_1": l.ddd_1,
         "telefone_1": l.telefone_1,
-    } for l in items], ensure_ascii=False)
+    } for l in items], ensure_ascii=False).replace("</", "<\\/")  # escapa </script> em razao_social etc.
 
     return templates.TemplateResponse("partials/resultados.html", {
         "request": request,
@@ -188,6 +188,8 @@ async def exportar_xlsx_form(request: Request, db: Session = Depends(get_db)):
 
 
 def _form_to_req(form) -> BuscarRequest:
+    # Usado apenas para exportação. O LIMITE_EXPORTACAO em api.py é a fonte
+    # da verdade; page_size aqui só precisa caber no validator do BuscarRequest.
     cnaes_raw = form.get("cnaes") or ""
     return BuscarRequest(
         uf=form.get("uf") or None,
@@ -198,5 +200,5 @@ def _form_to_req(form) -> BuscarRequest:
         porte=form.get("porte") or None,
         status_cliente=form.get("status_cliente") or None,
         page=1,
-        page_size=100000,
+        page_size=200,
     )

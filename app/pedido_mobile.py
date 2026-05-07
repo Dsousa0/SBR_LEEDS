@@ -42,12 +42,21 @@ def _normalizar_documento(doc: str | None) -> str:
 
 
 def _ultima_versao(db: Session) -> int:
+    # Considera apenas syncs CONCLUÍDOS sem erro — evita ler o registro
+    # da execução em andamento (que tem concluida_em IS NULL).
     return db.execute(
         text(
             "SELECT COALESCE(MAX(ultima_versao), 0) "
-            "FROM pedido_mobile_sync WHERE erro IS NULL"
+            "FROM pedido_mobile_sync "
+            "WHERE concluida_em IS NOT NULL AND erro IS NULL"
         )
     ).scalar() or 0
+
+
+def _sync_em_andamento(db: Session) -> bool:
+    return bool(db.execute(
+        text("SELECT 1 FROM pedido_mobile_sync WHERE concluida_em IS NULL LIMIT 1")
+    ).scalar())
 
 
 _RESPOSTA_VAZIA: dict = {"dados": [], "totalPaginas": 0, "totalRegistros": 0}
@@ -107,6 +116,11 @@ _UPSERT_SQL = text("""
 def sincronizar(db: Session) -> dict:
     """Executa um ciclo de sincronização. Retorna estatísticas."""
     _credenciais_ou_erro()
+    if _sync_em_andamento(db):
+        raise SyncError(
+            "Já existe uma sincronização em andamento. Aguarde a conclusão "
+            "antes de iniciar outra."
+        )
     versao_inicial = _ultima_versao(db)
     logger.info("Iniciando sync Pedido Mobile (versão local: %d)", versao_inicial)
 

@@ -165,6 +165,12 @@ const leads = {{ leads_json | safe }};
 const CONCORRENCIA_GEOCODE = 10;
 const CACHE_PREFIXO = 'pm_cep_';
 
+function _esc(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
 function _cacheGet(cep) {
   try {
     const v = localStorage.getItem(CACHE_PREFIXO + cep);
@@ -173,7 +179,19 @@ function _cacheGet(cep) {
 }
 
 function _cacheSet(cep, valor) {
-  try { localStorage.setItem(CACHE_PREFIXO + cep, JSON.stringify(valor)); } catch (_) {}
+  const k = CACHE_PREFIXO + cep;
+  const v = JSON.stringify(valor);
+  try { localStorage.setItem(k, v); }
+  catch (_) {
+    // Quota cheia: limpa o próprio prefixo e tenta de novo (nunca toca em
+    // outras chaves do app/site).
+    try {
+      Object.keys(localStorage)
+        .filter(x => x.startsWith(CACHE_PREFIXO))
+        .forEach(x => localStorage.removeItem(x));
+      localStorage.setItem(k, v);
+    } catch (_) {}
+  }
 }
 
 // Busca coordenadas pelo CEP via AwesomeAPI (retorna lat/lng diretamente).
@@ -255,7 +273,8 @@ window.iniciarMapa = async function() {
     const label = lead.nome_fantasia || lead.razao_social || '';
     const end = [lead.tipo_logradouro, lead.logradouro, lead.numero, lead.municipio + '/' + lead.uf]
       .filter(Boolean).join(' ');
-    const popup = `<b>${label}</b><br>${end}<br>${lead.ddd_1 ? '(' + lead.ddd_1 + ') ' + lead.telefone_1 : ''}`;
+    const tel = lead.ddd_1 ? '(' + lead.ddd_1 + ') ' + lead.telefone_1 : '';
+    const popup = `<b>${_esc(label)}</b><br>${_esc(end)}<br>${_esc(tel)}`;
     markers.push(L.marker([coords.lat, coords.lon]).addTo(mapa).bindPopup(popup));
   });
 
