@@ -245,7 +245,7 @@ async function _coordsPorEndereco(lead) {
 
   try {
     const r = await fetch(
-      `https://photon.komoot.io/api/?q=${encodeURIComponent(q)}&limit=1&lang=pt`
+      `https://photon.komoot.io/api/?q=${encodeURIComponent(q)}&limit=1`
     );
     if (!r.ok) { _cacheSet(chave, { lat: null }); return null; }
     const d = await r.json();
