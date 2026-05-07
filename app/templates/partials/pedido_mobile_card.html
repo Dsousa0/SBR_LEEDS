@@ -1,0 +1,50 @@
+<div id="pm-card"
+     class="bg-[#171717] rounded-xl border border-[#2e2e2e] p-4 flex items-center justify-between gap-3 flex-wrap">
+  <div class="flex items-center gap-3">
+    <svg class="w-5 h-5 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+        d="M17 20h5v-2a4 4 0 00-3-3.87M9 20H4v-2a4 4 0 013-3.87m6-5.13a4 4 0 11-8 0 4 4 0 018 0zm6 0a4 4 0 11-8 0 4 4 0 018 0z"/>
+    </svg>
+    <div>
+      <div class="text-sm text-white">
+        Clientes Pedido Mobile:
+        <span class="font-semibold text-orange-500">
+          {{ "{:,}".format(pm.total or 0).replace(",", ".") }}
+        </span>
+      </div>
+      <div class="text-xs text-[#666] mt-0.5">
+        {% if erro %}
+          <span class="text-red-400">Erro: {{ erro }}</span>
+        {% elif resultado %}
+          Sincronizado: +{{ resultado.novos }} novo{{ "s" if resultado.novos != 1 else "" }},
+          {{ resultado.atualizados }} atualizado{{ "s" if resultado.atualizados != 1 else "" }}
+          ({{ resultado.paginas }} páginas)
+        {% elif pm.ultima %}
+          Última sincronização:
+          {{ pm.ultima.concluida_em.strftime("%d/%m/%Y %H:%M") if pm.ultima.concluida_em else "—" }}
+          {% if pm.ultima.erro %}<span class="text-red-400">— {{ pm.ultima.erro }}</span>{% endif %}
+        {% else %}
+          Nunca sincronizado
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <button hx-post="/sync-clientes"
+          hx-target="#pm-card"
+          hx-swap="outerHTML"
+          hx-indicator="#pm-spinner"
+          hx-disabled-elt="this"
+          class="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-[#3a3a3a] text-[#aaa] hover:border-orange-500 hover:text-orange-500 transition-colors disabled:opacity-50">
+    <svg id="pm-spinner" class="htmx-indicator animate-spin w-3.5 h-3.5" fill="none" viewBox="0 0 24 24">
+      <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+      <path class="opacity-75" fill="currentColor"
+        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+    </svg>
+    <svg class="w-3.5 h-3.5 [.htmx-request_&]:hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+        d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+    </svg>
+    Sincronizar
+  </button>
+</div>

@@ -11,6 +11,7 @@ from database import get_db
 from routers.api import _UFS
 from schemas import BuscarRequest, Stats, UF, Municipio, Cnae
 from service import ATALHOS, buscar
+from pedido_mobile import sincronizar, ultima_sync, total_clientes, SyncError
 
 templates = Jinja2Templates(directory="templates")
 router = APIRouter()
@@ -39,6 +40,17 @@ def _get_stats(db: Session) -> Stats:
     )
 
 
+def _info_pedido_mobile(db: Session) -> dict:
+    try:
+        return {
+            "total": total_clientes(db),
+            "ultima": ultima_sync(db),
+        }
+    except Exception:
+        db.rollback()
+        return {"total": 0, "ultima": None}
+
+
 @router.get("/", response_class=HTMLResponse)
 def pagina_inicial(request: Request, db: Session = Depends(get_db)):
     stats = _get_stats(db)
@@ -49,7 +61,27 @@ def pagina_inicial(request: Request, db: Session = Depends(get_db)):
         "ufs": ufs,
         "atalhos": atalhos_view,
         "stats": stats,
+        "pm": _info_pedido_mobile(db),
     })
+
+
+@router.post("/sync-clientes", response_class=HTMLResponse)
+def sync_clientes(request: Request, db: Session = Depends(get_db)):
+    try:
+        resultado = sincronizar(db)
+        return templates.TemplateResponse("partials/pedido_mobile_card.html", {
+            "request": request,
+            "pm": _info_pedido_mobile(db),
+            "resultado": resultado,
+            "erro": None,
+        })
+    except SyncError as e:
+        return templates.TemplateResponse("partials/pedido_mobile_card.html", {
+            "request": request,
+            "pm": _info_pedido_mobile(db),
+            "resultado": None,
+            "erro": str(e),
+        })
 
 
 @router.get("/municipios-options", response_class=HTMLResponse)

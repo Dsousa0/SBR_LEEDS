@@ -132,6 +132,34 @@ CREATE TABLE IF NOT EXISTS simples (
     data_exclusao_mei   VARCHAR(8)
 );
 
+-- -------------------------------------------------------
+-- Integração Pedido Mobile (clientes ativos dos vendedores)
+-- -------------------------------------------------------
+
+CREATE TABLE IF NOT EXISTS cliente_pedido_mobile (
+    documento     VARCHAR(14) PRIMARY KEY,  -- CNPJ ou CPF, somente dígitos
+    tipo_documento VARCHAR(4),
+    razao_social  VARCHAR(200),
+    nome_fantasia VARCHAR(200),
+    vendedor      VARCHAR(100),
+    inativo       BOOLEAN DEFAULT FALSE,
+    municipio     VARCHAR(100),
+    uf            VARCHAR(2),
+    atualizado_em TIMESTAMP DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS pedido_mobile_sync (
+    id              SERIAL PRIMARY KEY,
+    iniciada_em     TIMESTAMP DEFAULT NOW(),
+    concluida_em    TIMESTAMP,
+    ultima_versao   BIGINT NOT NULL DEFAULT 0,
+    total_clientes  INTEGER,
+    novos           INTEGER,
+    atualizados     INTEGER,
+    paginas         INTEGER,
+    erro            TEXT
+);
+
 COMMIT;
 
 -- =============================================================
