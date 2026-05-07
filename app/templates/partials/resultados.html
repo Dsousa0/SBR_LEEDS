@@ -160,24 +160,11 @@
 
 <script>
 (function () {
-// ---- Abas ----
-window.mostrarAba = function(aba) {
-  document.getElementById('painel-tabela').classList.toggle('hidden', aba !== 'tabela');
-  document.getElementById('painel-mapa').classList.toggle('hidden', aba !== 'mapa');
-  document.getElementById('aba-tabela').className =
-    'aba px-5 py-3 text-sm font-medium flex items-center gap-1.5 border-b-2 ' +
-    (aba === 'tabela' ? 'border-orange-500 text-orange-500' : 'border-transparent text-[#666] hover:text-[#aaa]');
-  document.getElementById('aba-mapa').className =
-    'aba px-5 py-3 text-sm font-medium flex items-center gap-1.5 border-b-2 ' +
-    (aba === 'mapa' ? 'border-orange-500 text-orange-500' : 'border-transparent text-[#666] hover:text-[#aaa]');
-
-  if (aba === 'mapa') iniciarMapa();
-};
-
-// ---- Mapa (Leaflet + Nominatim geocoding) ----
 const leads = {{ leads_json | safe }};
 
-window.mapaLeaflet = null;
+// Cancela timeouts pendentes da busca anterior (markers que ainda iam disparar)
+if (window._pmTimeouts) window._pmTimeouts.forEach(clearTimeout);
+window._pmTimeouts = [];
 
 function _nominatim(q) {
   return fetch(
@@ -194,11 +181,35 @@ function _cidadeUnica() {
   return todasIguais ? { municipio, uf } : null;
 }
 
+window.mostrarAba = function(aba) {
+  document.getElementById('painel-tabela').classList.toggle('hidden', aba !== 'tabela');
+  document.getElementById('painel-mapa').classList.toggle('hidden', aba !== 'mapa');
+  document.getElementById('aba-tabela').className =
+    'aba px-5 py-3 text-sm font-medium flex items-center gap-1.5 border-b-2 ' +
+    (aba === 'tabela' ? 'border-orange-500 text-orange-500' : 'border-transparent text-[#666] hover:text-[#aaa]');
+  document.getElementById('aba-mapa').className =
+    'aba px-5 py-3 text-sm font-medium flex items-center gap-1.5 border-b-2 ' +
+    (aba === 'mapa' ? 'border-orange-500 text-orange-500' : 'border-transparent text-[#666] hover:text-[#aaa]');
+  if (aba === 'mapa') window.iniciarMapa();
+};
+
 window.iniciarMapa = function() {
+  // Remove a instância anterior do Leaflet (caso o Mapa esteja sendo reaberto)
   if (window.mapaLeaflet) {
-    window.mapaLeaflet.remove();
+    try { window.mapaLeaflet.remove(); } catch (_) {}
     window.mapaLeaflet = null;
   }
+
+  const mapDiv = document.getElementById('mapa');
+  if (mapDiv && mapDiv._leaflet_id != null) {
+    // Div ainda tem ID interno do Leaflet de uma instância antiga — limpa pra evitar
+    // "Map container is already initialized"
+    delete mapDiv._leaflet_id;
+  }
+
+  // Cancela qualquer timeout que ainda esteja pendente desta sessão
+  window._pmTimeouts.forEach(clearTimeout);
+  window._pmTimeouts = [];
 
   const mapa = L.map('mapa').setView([-15.77, -47.93], 5);
   window.mapaLeaflet = mapa;
@@ -211,30 +222,41 @@ window.iniciarMapa = function() {
   if (cidade) {
     _nominatim(`${cidade.municipio}, ${cidade.uf}, Brasil`)
       .then(data => {
-        if (data.length) mapa.setView([+data[0].lat, +data[0].lon], 12);
+        if (window.mapaLeaflet === mapa && data.length) {
+          mapa.setView([+data[0].lat, +data[0].lon], 12);
+        }
       })
       .catch(() => {});
   }
 
-  // Marcadores individuais (endereço por endereço, respeitando rate limit do Nominatim)
+  // Marcadores individuais (respeitando rate limit do Nominatim)
   leads.forEach((lead, i) => {
     if (!lead.municipio || !lead.uf) return;
     const label = lead.nome_fantasia || lead.razao_social || '';
     const end = [lead.tipo_logradouro, lead.logradouro, lead.numero, lead.municipio + '/' + lead.uf]
       .filter(Boolean).join(' ');
 
-    setTimeout(() => {
+    const id = setTimeout(() => {
+      // Aborta se já não somos o mapa ativo (busca nova chegou)
+      if (window.mapaLeaflet !== mapa) return;
       const q = `${lead.logradouro || ''}, ${lead.numero || ''}, ${lead.municipio}, ${lead.uf}, Brasil`;
       _nominatim(q)
         .then(data => {
-          if (!data.length) return;
+          if (window.mapaLeaflet !== mapa || !data.length) return;
           const popup = `<b>${label}</b><br>${end}<br>${lead.ddd_1 ? '(' + lead.ddd_1 + ') ' + lead.telefone_1 : ''}`;
           L.marker([+data[0].lat, +data[0].lon]).addTo(mapa).bindPopup(popup);
         })
         .catch(() => {});
     }, i * 600);
+    window._pmTimeouts.push(id);
   });
 };
+
+// Se o mapa estava aberto na busca anterior, re-abre automaticamente
+if (document.getElementById('painel-mapa') &&
+    !document.getElementById('painel-mapa').classList.contains('hidden')) {
+  window.iniciarMapa();
+}
 })();
 </script>
 
