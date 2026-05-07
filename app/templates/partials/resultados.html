@@ -165,21 +165,6 @@ const leads = {{ leads_json | safe }};
 const CONCORRENCIA_GEOCODE = 10;
 const CACHE_PREFIXO = 'pm_cep_';
 
-function _nominatim(q) {
-  return fetch(
-    `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)}&limit=1`,
-    { headers: { 'User-Agent': 'prospec-leads/1.0' } }
-  ).then(r => r.json());
-}
-
-function _cidadeUnica() {
-  if (!leads.length) return null;
-  const { municipio, uf } = leads[0];
-  if (!municipio || !uf) return null;
-  const todasIguais = leads.every(l => l.municipio === municipio && l.uf === uf);
-  return todasIguais ? { municipio, uf } : null;
-}
-
 function _cacheGet(cep) {
   try {
     const v = localStorage.getItem(CACHE_PREFIXO + cep);
@@ -247,7 +232,7 @@ window.mostrarAba = function(aba) {
   if (aba === 'mapa') window.iniciarMapa();
 };
 
-window.iniciarMapa = function() {
+window.iniciarMapa = async function() {
   if (window.mapaLeaflet) {
     try { window.mapaLeaflet.remove(); } catch (_) {}
     window.mapaLeaflet = null;
@@ -261,20 +246,9 @@ window.iniciarMapa = function() {
     attribution: '© OpenStreetMap contributors'
   }).addTo(mapa);
 
-  // Centraliza na cidade se todos os resultados forem do mesmo município
-  const cidade = _cidadeUnica();
-  if (cidade) {
-    _nominatim(`${cidade.municipio}, ${cidade.uf}, Brasil`)
-      .then(data => {
-        if (window.mapaLeaflet === mapa && data.length) {
-          mapa.setView([+data[0].lat, +data[0].lon], 12);
-        }
-      })
-      .catch(() => {});
-  }
-
   // Geocode em paralelo via AwesomeAPI (CEP → coordenadas, com cache local)
-  _comConcorrencia(leads, CONCORRENCIA_GEOCODE, async (lead) => {
+  const markers = [];
+  await _comConcorrencia(leads, CONCORRENCIA_GEOCODE, async (lead) => {
     if (window.mapaLeaflet !== mapa) return;
     const coords = await _coordsPorCep(lead.cep);
     if (!coords || window.mapaLeaflet !== mapa) return;
@@ -282,8 +256,16 @@ window.iniciarMapa = function() {
     const end = [lead.tipo_logradouro, lead.logradouro, lead.numero, lead.municipio + '/' + lead.uf]
       .filter(Boolean).join(' ');
     const popup = `<b>${label}</b><br>${end}<br>${lead.ddd_1 ? '(' + lead.ddd_1 + ') ' + lead.telefone_1 : ''}`;
-    L.marker([coords.lat, coords.lon]).addTo(mapa).bindPopup(popup);
+    markers.push(L.marker([coords.lat, coords.lon]).addTo(mapa).bindPopup(popup));
   });
+
+  // Auto-zoom: ajusta o mapa para mostrar todos os marcadores
+  if (markers.length && window.mapaLeaflet === mapa) {
+    mapa.fitBounds(L.featureGroup(markers).getBounds(), {
+      padding: [40, 40],
+      maxZoom: 15,
+    });
+  }
 };
 
 // Se o mapa estava aberto na busca anterior, re-abre automaticamente
