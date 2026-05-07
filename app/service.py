@@ -177,3 +177,15 @@ def contar(req: BuscarRequest, db: Session) -> int:
     return db.execute(
         text(_COUNT_SQL.format(where=where)), params
     ).scalar() or 0
+
+
+def buscar_para_mapa(req: BuscarRequest, db: Session, limite: int = 5000) -> list[Lead]:
+    """Retorna leads ignorando paginação — usado para alimentar o mapa
+    com todos os resultados do filtro, não só a página atual."""
+    cnaes = resolve_cnaes(req)
+    where, params = build_where(req, cnaes)
+    rows = db.execute(
+        text(f"{SELECT_LEADS} WHERE {where} ORDER BY emp.razao_social LIMIT :limit"),
+        {**params, "limit": limite},
+    ).fetchall()
+    return [row_to_lead(r) for r in rows]

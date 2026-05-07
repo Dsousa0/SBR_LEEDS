@@ -10,7 +10,9 @@ from sqlalchemy.orm import Session
 from database import get_db
 from routers.api import _UFS
 from schemas import BuscarRequest, Stats, UF, Municipio, Cnae
-from service import ATALHOS, buscar
+from service import ATALHOS, buscar, buscar_para_mapa
+
+LIMITE_MAPA = 5000
 from pedido_mobile import sincronizar, ultima_sync, total_clientes, SyncError
 
 templates = Jinja2Templates(directory="templates")
@@ -148,8 +150,10 @@ async def buscar_html(request: Request, db: Session = Depends(get_db)):
     )
 
     resultado = buscar(req, db)
-    items = resultado.items
 
+    # O mapa precisa de todos os leads do filtro (não só os 50 da página atual).
+    # Limita a LIMITE_MAPA pra não estourar JSON enorme nem geocoder.
+    leads_mapa = buscar_para_mapa(req, db, limite=LIMITE_MAPA)
     leads_json = json.dumps([{
         "cnpj": l.cnpj,
         "razao_social": l.razao_social,
@@ -162,12 +166,16 @@ async def buscar_html(request: Request, db: Session = Depends(get_db)):
         "cep": l.cep,
         "ddd_1": l.ddd_1,
         "telefone_1": l.telefone_1,
-    } for l in items], ensure_ascii=False).replace("</", "<\\/")  # escapa </script> em razao_social etc.
+        "eh_cliente": l.eh_cliente,
+        "vendedor": l.vendedor,
+    } for l in leads_mapa], ensure_ascii=False).replace("</", "<\\/")
 
     return templates.TemplateResponse("partials/resultados.html", {
         "request": request,
         "resultado": resultado,
         "leads_json": leads_json,
+        "total_no_mapa": len(leads_mapa),
+        "limite_mapa": LIMITE_MAPA,
     })
 
 

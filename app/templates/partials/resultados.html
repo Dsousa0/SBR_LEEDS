@@ -129,6 +129,17 @@
 
   <!-- Mapa -->
   <div id="painel-mapa" class="hidden">
+    {% if total_no_mapa is defined and resultado.total > total_no_mapa %}
+    <div class="bg-[#1a1a1a] text-[#888] text-xs px-4 py-2 border-b border-[#2e2e2e] flex items-center gap-2">
+      <svg class="w-3.5 h-3.5 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+          d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+      </svg>
+      Mostrando os primeiros {{ "{:,}".format(total_no_mapa).replace(",", ".") }} de
+      {{ "{:,}".format(resultado.total).replace(",", ".") }} resultados no mapa
+      (refine os filtros para ver todos).
+    </div>
+    {% endif %}
     <div id="mapa"></div>
   </div>
 </div>
@@ -169,6 +180,15 @@ function _esc(s) {
   return String(s == null ? '' : s)
     .replace(/&/g, '&amp;').replace(/</g, '&lt;')
     .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+function _icone(ehCliente) {
+  const cor = ehCliente ? '#f97316' : '#6b6b6b';
+  const html = `<div style="background:${cor};width:14px;height:14px;border-radius:50%;border:2px solid #fff;box-shadow:0 0 4px rgba(0,0,0,.6)"></div>`;
+  return L.divIcon({
+    html, className: 'pm-marker',
+    iconSize: [18, 18], iconAnchor: [9, 9], popupAnchor: [0, -9],
+  });
 }
 
 function _cacheGet(cep) {
@@ -274,8 +294,14 @@ window.iniciarMapa = async function() {
     const end = [lead.tipo_logradouro, lead.logradouro, lead.numero, lead.municipio + '/' + lead.uf]
       .filter(Boolean).join(' ');
     const tel = lead.ddd_1 ? '(' + lead.ddd_1 + ') ' + lead.telefone_1 : '';
-    const popup = `<b>${_esc(label)}</b><br>${_esc(end)}<br>${_esc(tel)}`;
-    markers.push(L.marker([coords.lat, coords.lon]).addTo(mapa).bindPopup(popup));
+    const badge = lead.eh_cliente
+      ? `<div style="color:#f97316;font-weight:600;margin-top:4px">Cliente${lead.vendedor ? ' • ' + _esc(lead.vendedor) : ''}</div>`
+      : '';
+    const popup = `<b>${_esc(label)}</b><br>${_esc(end)}<br>${_esc(tel)}${badge}`;
+    markers.push(
+      L.marker([coords.lat, coords.lon], { icon: _icone(lead.eh_cliente) })
+        .addTo(mapa).bindPopup(popup)
+    );
   });
 
   // Auto-zoom: ajusta o mapa para mostrar todos os marcadores
