@@ -29,6 +29,7 @@ class BuscarRequest(BaseModel):
     segmento: str | None = None
     apenas_ativas: bool = True
     porte: str | None = None  # 01=MEI, 03=ME, 05=EPP, 99=Demais
+    status_cliente: str | None = None  # None=todos, "cliente", "prospect"
     page: int = 1
     page_size: int = 50
 
@@ -55,6 +56,8 @@ class Lead(BaseModel):
     situacao: str | None
     porte: str | None
     capital_social: float | None
+    eh_cliente: bool = False
+    vendedor: str | None = None
 
 
 class BuscarResponse(BaseModel):

@@ -29,26 +29,32 @@ _UFS = [
 ]
 
 
-def _leads_to_rows(leads: list[Lead]) -> list[list]:
-    header = [
-        "CNPJ", "Razão Social", "Nome Fantasia", "CNAE", "Descrição CNAE",
-        "Logradouro", "Número", "Complemento", "Bairro", "CEP",
-        "UF", "Município", "DDD 1", "Telefone 1", "DDD 2", "Telefone 2",
-        "E-mail", "Situação", "Porte", "Capital Social",
+_HEADER_EXPORT = [
+    "CNPJ", "Razão Social", "Nome Fantasia", "CNAE", "Descrição CNAE",
+    "Logradouro", "Número", "Complemento", "Bairro", "CEP",
+    "UF", "Município", "DDD 1", "Telefone 1", "DDD 2", "Telefone 2",
+    "E-mail", "Situação", "Porte", "Capital Social",
+    "Já é Cliente", "Vendedor",
+]
+
+
+def _lead_to_row(lead: Lead) -> list:
+    logradouro = f"{lead.tipo_logradouro or ''} {lead.logradouro or ''}".strip()
+    return [
+        lead.cnpj, lead.razao_social, lead.nome_fantasia,
+        lead.cnae_principal, lead.cnae_descricao,
+        logradouro, lead.numero, lead.complemento, lead.bairro, lead.cep,
+        lead.uf, lead.municipio,
+        lead.ddd_1, lead.telefone_1, lead.ddd_2, lead.telefone_2,
+        lead.email, lead.situacao, PORTES.get(lead.porte or "", lead.porte),
+        lead.capital_social,
+        "Sim" if lead.eh_cliente else "Não",
+        lead.vendedor,
     ]
-    rows = [header]
-    for lead in leads:
-        logradouro = f"{lead.tipo_logradouro or ''} {lead.logradouro or ''}".strip()
-        rows.append([
-            lead.cnpj, lead.razao_social, lead.nome_fantasia,
-            lead.cnae_principal, lead.cnae_descricao,
-            logradouro, lead.numero, lead.complemento, lead.bairro, lead.cep,
-            lead.uf, lead.municipio,
-            lead.ddd_1, lead.telefone_1, lead.ddd_2, lead.telefone_2,
-            lead.email, lead.situacao, PORTES.get(lead.porte or "", lead.porte),
-            lead.capital_social,
-        ])
-    return rows
+
+
+def _leads_to_rows(leads: list[Lead]) -> list[list]:
+    return [_HEADER_EXPORT, *(_lead_to_row(l) for l in leads)]
 
 
 def _stream_csv(req: BuscarRequest, db: Session) -> Iterator[bytes]:
@@ -58,12 +64,7 @@ def _stream_csv(req: BuscarRequest, db: Session) -> Iterator[bytes]:
     buf = io.StringIO()
     writer = csv.writer(buf, delimiter=";")
 
-    writer.writerow([
-        "CNPJ", "Razão Social", "Nome Fantasia", "CNAE", "Descrição CNAE",
-        "Logradouro", "Número", "Complemento", "Bairro", "CEP",
-        "UF", "Município", "DDD 1", "Telefone 1", "DDD 2", "Telefone 2",
-        "E-mail", "Situação", "Porte", "Capital Social",
-    ])
+    writer.writerow(_HEADER_EXPORT)
     yield buf.getvalue().encode("utf-8-sig")
 
     result = db.execute(
@@ -72,18 +73,9 @@ def _stream_csv(req: BuscarRequest, db: Session) -> Iterator[bytes]:
     )
     for row in result:
         lead = row_to_lead(row)
-        logradouro = f"{lead.tipo_logradouro or ''} {lead.logradouro or ''}".strip()
         buf.seek(0)
         buf.truncate()
-        writer.writerow([
-            lead.cnpj, lead.razao_social, lead.nome_fantasia,
-            lead.cnae_principal, lead.cnae_descricao,
-            logradouro, lead.numero, lead.complemento, lead.bairro, lead.cep,
-            lead.uf, lead.municipio,
-            lead.ddd_1, lead.telefone_1, lead.ddd_2, lead.telefone_2,
-            lead.email, lead.situacao, PORTES.get(lead.porte or "", lead.porte),
-            lead.capital_social,
-        ])
+        writer.writerow(_lead_to_row(lead))
         yield buf.getvalue().encode("utf-8")
 
 

@@ -98,6 +98,17 @@
           </select>
         </div>
 
+        <!-- Status do cliente (Pedido Mobile) -->
+        <div>
+          <label class="block text-xs font-medium text-[#888] mb-1 uppercase tracking-wide">Status do cliente</label>
+          <select name="status_cliente"
+                  class="w-full rounded-lg bg-[#222] border border-[#3a3a3a] px-3 py-2 text-sm text-[#e5e5e5] focus:outline-none focus:border-orange-500 transition-colors">
+            <option value="">Todos</option>
+            <option value="cliente">Apenas clientes (Pedido Mobile)</option>
+            <option value="prospect">Apenas prospects (não clientes)</option>
+          </select>
+        </div>
+
         <!-- Botão buscar -->
         <button type="submit"
                 class="w-full bg-orange-500 hover:bg-orange-600 text-white font-semibold py-2.5 rounded-lg transition-colors flex items-center justify-center gap-2">

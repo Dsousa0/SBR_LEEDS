@@ -50,6 +50,9 @@ def _ultima_versao(db: Session) -> int:
     ).scalar() or 0
 
 
+_RESPOSTA_VAZIA: dict = {"dados": [], "totalPaginas": 0, "totalRegistros": 0}
+
+
 def _buscar_pagina(versao: int, page: int) -> dict:
     user, pwd = _credenciais_ou_erro()
     url = settings.pedido_mobile_base_url.rstrip("/") + ENDPOINT
@@ -63,6 +66,11 @@ def _buscar_pagina(versao: int, page: int) -> dict:
                 timeout=TIMEOUT_SEGUNDOS,
                 headers={"Accept": "application/json"},
             )
+            # API retorna 404 quando não há clientes alterados desde a versão.
+            # Tratamos como resposta vazia (sucesso, 0 alterações).
+            if r.status_code == 404:
+                logger.info("Sem alterações desde a versão %d (HTTP 404)", versao)
+                return {**_RESPOSTA_VAZIA, "ultimaVersao": versao}
             r.raise_for_status()
             return r.json()
         except requests.RequestException as e:

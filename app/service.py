@@ -33,7 +33,17 @@ PORTES: dict[str, str] = {
     "99": "Demais",
 }
 
-SELECT_LEADS = """
+_FROM_LEADS = """
+    FROM estabelecimento e
+    LEFT JOIN empresa    emp ON emp.cnpj_basico = e.cnpj_basico
+    LEFT JOIN municipio  m   ON m.codigo        = e.municipio
+    LEFT JOIN cnae       c   ON c.codigo        = e.cnae_fiscal_principal
+    LEFT JOIN cliente_pedido_mobile pm
+           ON pm.documento = e.cnpj_basico || e.cnpj_ordem || e.cnpj_dv
+          AND pm.inativo = FALSE
+"""
+
+SELECT_LEADS = f"""
     SELECT
         e.cnpj_basico || e.cnpj_ordem || e.cnpj_dv AS cnpj,
         emp.razao_social,
@@ -55,18 +65,13 @@ SELECT_LEADS = """
         e.correio_eletronico,
         e.situacao_cadastral,
         emp.porte,
-        emp.capital_social
-    FROM estabelecimento e
-    LEFT JOIN empresa    emp ON emp.cnpj_basico = e.cnpj_basico
-    LEFT JOIN municipio  m   ON m.codigo        = e.municipio
-    LEFT JOIN cnae       c   ON c.codigo        = e.cnae_fiscal_principal
+        emp.capital_social,
+        pm.documento IS NOT NULL AS eh_cliente,
+        pm.vendedor   AS vendedor
+    {_FROM_LEADS}
 """
 
-_COUNT_SQL = (
-    "SELECT COUNT(*) FROM estabelecimento e "
-    "LEFT JOIN empresa emp ON emp.cnpj_basico = e.cnpj_basico "
-    "WHERE {where}"
-)
+_COUNT_SQL = f"SELECT COUNT(*) {_FROM_LEADS} WHERE {{where}}"
 
 # ---------------------------------------------------------------------------
 # Funções de negócio
@@ -104,6 +109,11 @@ def build_where(req: BuscarRequest, cnaes: list[str] | None) -> tuple[str, dict]
         conditions.append("emp.porte = :porte")
         params["porte"] = req.porte
 
+    if req.status_cliente == "cliente":
+        conditions.append("pm.documento IS NOT NULL")
+    elif req.status_cliente == "prospect":
+        conditions.append("pm.documento IS NULL")
+
     return " AND ".join(conditions), params
 
 
@@ -130,6 +140,8 @@ def row_to_lead(row) -> Lead:
         situacao=row.situacao_cadastral,
         porte=row.porte,
         capital_social=float(row.capital_social) if row.capital_social else None,
+        eh_cliente=bool(row.eh_cliente),
+        vendedor=row.vendedor,
     )
 
 

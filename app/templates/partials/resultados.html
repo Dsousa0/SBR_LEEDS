@@ -67,9 +67,20 @@
         {% for lead in resultado.items %}
         <tr class="hover:bg-[#1a1a1a] transition-colors">
           <td class="px-4 py-3">
-            <div class="font-medium text-white truncate max-w-[200px]"
-                 title="{{ lead.razao_social }}">
-              {{ lead.nome_fantasia or lead.razao_social or '—' }}
+            <div class="flex items-center gap-2 flex-wrap">
+              <div class="font-medium text-white truncate max-w-[200px]"
+                   title="{{ lead.razao_social }}">
+                {{ lead.nome_fantasia or lead.razao_social or '—' }}
+              </div>
+              {% if lead.eh_cliente %}
+              <span class="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full font-semibold bg-orange-500/15 text-orange-400 border border-orange-500/30 uppercase tracking-wide"
+                    title="Cliente já cadastrado{% if lead.vendedor %} — Vendedor: {{ lead.vendedor }}{% endif %}">
+                <svg class="w-2.5 h-2.5" fill="currentColor" viewBox="0 0 20 20">
+                  <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
+                </svg>
+                Cliente{% if lead.vendedor %} • {{ lead.vendedor }}{% endif %}
+              </span>
+              {% endif %}
             </div>
             <div class="text-xs text-[#555] mt-0.5">{{ lead.cnpj[:2] }}.{{ lead.cnpj[2:5] }}.{{ lead.cnpj[5:8] }}/{{ lead.cnpj[8:12] }}-{{ lead.cnpj[12:] }}</div>
             <div class="text-xs text-orange-500 mt-0.5">{{ lead.cnae_descricao or lead.cnae_principal or '—' }}</div>

@@ -131,6 +131,7 @@ async def buscar_html(request: Request, db: Session = Depends(get_db)):
     cnaes_lista = [c.strip() for c in cnaes_raw.split(",") if c.strip()] if cnaes_raw else None
     apenas_ativas = form.get("apenas_ativas") == "true"
     porte = form.get("porte") or None
+    status_cliente = form.get("status_cliente") or None
     page = int(form.get("page") or 1)
     page_size = 50
 
@@ -141,6 +142,7 @@ async def buscar_html(request: Request, db: Session = Depends(get_db)):
         cnaes=cnaes_lista,
         apenas_ativas=apenas_ativas,
         porte=porte,
+        status_cliente=status_cliente,
         page=page,
         page_size=page_size,
     )
@@ -194,6 +196,7 @@ def _form_to_req(form) -> BuscarRequest:
         cnaes=[c.strip() for c in cnaes_raw.split(",") if c.strip()] if cnaes_raw else None,
         apenas_ativas=form.get("apenas_ativas") == "true",
         porte=form.get("porte") or None,
+        status_cliente=form.get("status_cliente") or None,
         page=1,
         page_size=100000,
     )
