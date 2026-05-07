@@ -5,6 +5,8 @@ from collections.abc import Iterator
 import openpyxl
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import StreamingResponse
+from openpyxl.cell import WriteOnlyCell
+from openpyxl.styles import Font
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
@@ -13,6 +15,12 @@ from schemas import AtalhosCnae, BuscarRequest, BuscarResponse, Cnae, Lead, Muni
 from service import ATALHOS, PORTES, SELECT_LEADS, build_where, contar, resolve_cnaes, row_to_lead, buscar
 
 LIMITE_EXPORTACAO = 50_000
+
+
+def _execute_streaming(db: Session, sql: str, params: dict):
+    """psycopg2 + SQLAlchemy bufferam tudo por padrão; stream_results força
+    cursor server-side para iterar linha a linha sem carregar 50k em RAM."""
+    return db.connection().execution_options(stream_results=True).execute(text(sql), params)
 
 router = APIRouter(prefix="/api")
 
@@ -53,10 +61,6 @@ def _lead_to_row(lead: Lead) -> list:
     ]
 
 
-def _leads_to_rows(leads: list[Lead]) -> list[list]:
-    return [_HEADER_EXPORT, *(_lead_to_row(l) for l in leads)]
-
-
 def _stream_csv(req: BuscarRequest, db: Session) -> Iterator[bytes]:
     cnaes = resolve_cnaes(req)
     where, params = build_where(req, cnaes)
@@ -67,8 +71,9 @@ def _stream_csv(req: BuscarRequest, db: Session) -> Iterator[bytes]:
     writer.writerow(_HEADER_EXPORT)
     yield buf.getvalue().encode("utf-8-sig")
 
-    result = db.execute(
-        text(f"{SELECT_LEADS} WHERE {where} ORDER BY emp.razao_social LIMIT :limit"),
+    result = _execute_streaming(
+        db,
+        f"{SELECT_LEADS} WHERE {where} ORDER BY emp.razao_social LIMIT :limit",
         {**params, "limit": LIMITE_EXPORTACAO},
     )
     for row in result:
@@ -152,26 +157,30 @@ def exportar_csv(req: BuscarRequest, db: Session = Depends(get_db)):
 
 @router.post("/exportar.xlsx")
 def exportar_xlsx(req: BuscarRequest, db: Session = Depends(get_db)):
-    from openpyxl.styles import Font
-
     cnaes = resolve_cnaes(req)
     where, params = build_where(req, cnaes)
     total = contar(req, db)
 
-    rows = db.execute(
-        text(f"{SELECT_LEADS} WHERE {where} ORDER BY emp.razao_social LIMIT :limit"),
+    # write_only mantém uso de memória ~constante: cada linha é serializada
+    # no XML temporário e descartada da RAM imediatamente.
+    wb = openpyxl.Workbook(write_only=True)
+    ws = wb.create_sheet("Leads")
+
+    bold = Font(bold=True)
+    header = []
+    for h in _HEADER_EXPORT:
+        cell = WriteOnlyCell(ws, value=h)
+        cell.font = bold
+        header.append(cell)
+    ws.append(header)
+
+    result = _execute_streaming(
+        db,
+        f"{SELECT_LEADS} WHERE {where} ORDER BY emp.razao_social LIMIT :limit",
         {**params, "limit": LIMITE_EXPORTACAO},
-    ).fetchall()
-
-    tabela = _leads_to_rows([row_to_lead(r) for r in rows])
-
-    wb = openpyxl.Workbook()
-    ws = wb.active
-    ws.title = "Leads"
-    for row in tabela:
-        ws.append(row)
-    for cell in ws[1]:
-        cell.font = Font(bold=True)
+    )
+    for row in result:
+        ws.append(_lead_to_row(row_to_lead(row)))
 
     buf = io.BytesIO()
     wb.save(buf)
