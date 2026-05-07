@@ -162,9 +162,8 @@
 (function () {
 const leads = {{ leads_json | safe }};
 
-// Cancela timeouts pendentes da busca anterior (markers que ainda iam disparar)
-if (window._pmTimeouts) window._pmTimeouts.forEach(clearTimeout);
-window._pmTimeouts = [];
+const CONCORRENCIA_GEOCODE = 10;
+const CACHE_PREFIXO = 'pm_cep_';
 
 function _nominatim(q) {
   return fetch(
@@ -181,6 +180,61 @@ function _cidadeUnica() {
   return todasIguais ? { municipio, uf } : null;
 }
 
+function _cacheGet(cep) {
+  try {
+    const v = localStorage.getItem(CACHE_PREFIXO + cep);
+    return v ? JSON.parse(v) : null;
+  } catch (_) { return null; }
+}
+
+function _cacheSet(cep, valor) {
+  try { localStorage.setItem(CACHE_PREFIXO + cep, JSON.stringify(valor)); } catch (_) {}
+}
+
+// Busca coordenadas pelo CEP via AwesomeAPI (retorna lat/lng diretamente).
+// Cacheia hits e misses em localStorage para evitar refetch.
+async function _coordsPorCep(cep) {
+  const limpo = (cep || '').replace(/\D/g, '');
+  if (limpo.length !== 8) return null;
+
+  const cached = _cacheGet(limpo);
+  if (cached !== null) return cached.lat ? cached : null;
+
+  try {
+    const r = await fetch(`https://cep.awesomeapi.com.br/json/${limpo}`);
+    if (!r.ok) {
+      _cacheSet(limpo, { lat: null });
+      return null;
+    }
+    const d = await r.json();
+    if (!d.lat || !d.lng) {
+      _cacheSet(limpo, { lat: null });
+      return null;
+    }
+    const coords = { lat: parseFloat(d.lat), lon: parseFloat(d.lng) };
+    if (isNaN(coords.lat) || isNaN(coords.lon)) {
+      _cacheSet(limpo, { lat: null });
+      return null;
+    }
+    _cacheSet(limpo, coords);
+    return coords;
+  } catch (_) {
+    return null;
+  }
+}
+
+// Executa worker em até N items simultâneos
+async function _comConcorrencia(items, n, worker) {
+  const fila = items.slice();
+  const trabalhadores = Array.from({ length: Math.min(n, fila.length) }, async () => {
+    while (fila.length) {
+      const item = fila.shift();
+      await worker(item);
+    }
+  });
+  await Promise.all(trabalhadores);
+}
+
 window.mostrarAba = function(aba) {
   document.getElementById('painel-tabela').classList.toggle('hidden', aba !== 'tabela');
   document.getElementById('painel-mapa').classList.toggle('hidden', aba !== 'mapa');
@@ -194,22 +248,12 @@ window.mostrarAba = function(aba) {
 };
 
 window.iniciarMapa = function() {
-  // Remove a instância anterior do Leaflet (caso o Mapa esteja sendo reaberto)
   if (window.mapaLeaflet) {
     try { window.mapaLeaflet.remove(); } catch (_) {}
     window.mapaLeaflet = null;
   }
-
   const mapDiv = document.getElementById('mapa');
-  if (mapDiv && mapDiv._leaflet_id != null) {
-    // Div ainda tem ID interno do Leaflet de uma instância antiga — limpa pra evitar
-    // "Map container is already initialized"
-    delete mapDiv._leaflet_id;
-  }
-
-  // Cancela qualquer timeout que ainda esteja pendente desta sessão
-  window._pmTimeouts.forEach(clearTimeout);
-  window._pmTimeouts = [];
+  if (mapDiv && mapDiv._leaflet_id != null) delete mapDiv._leaflet_id;
 
   const mapa = L.map('mapa').setView([-15.77, -47.93], 5);
   window.mapaLeaflet = mapa;
@@ -229,26 +273,16 @@ window.iniciarMapa = function() {
       .catch(() => {});
   }
 
-  // Marcadores individuais (respeitando rate limit do Nominatim)
-  leads.forEach((lead, i) => {
-    if (!lead.municipio || !lead.uf) return;
+  // Geocode em paralelo via AwesomeAPI (CEP → coordenadas, com cache local)
+  _comConcorrencia(leads, CONCORRENCIA_GEOCODE, async (lead) => {
+    if (window.mapaLeaflet !== mapa) return;
+    const coords = await _coordsPorCep(lead.cep);
+    if (!coords || window.mapaLeaflet !== mapa) return;
     const label = lead.nome_fantasia || lead.razao_social || '';
     const end = [lead.tipo_logradouro, lead.logradouro, lead.numero, lead.municipio + '/' + lead.uf]
       .filter(Boolean).join(' ');
-
-    const id = setTimeout(() => {
-      // Aborta se já não somos o mapa ativo (busca nova chegou)
-      if (window.mapaLeaflet !== mapa) return;
-      const q = `${lead.logradouro || ''}, ${lead.numero || ''}, ${lead.municipio}, ${lead.uf}, Brasil`;
-      _nominatim(q)
-        .then(data => {
-          if (window.mapaLeaflet !== mapa || !data.length) return;
-          const popup = `<b>${label}</b><br>${end}<br>${lead.ddd_1 ? '(' + lead.ddd_1 + ') ' + lead.telefone_1 : ''}`;
-          L.marker([+data[0].lat, +data[0].lon]).addTo(mapa).bindPopup(popup);
-        })
-        .catch(() => {});
-    }, i * 600);
-    window._pmTimeouts.push(id);
+    const popup = `<b>${label}</b><br>${end}<br>${lead.ddd_1 ? '(' + lead.ddd_1 + ') ' + lead.telefone_1 : ''}`;
+    L.marker([coords.lat, coords.lon]).addTo(mapa).bindPopup(popup);
   });
 };
 
