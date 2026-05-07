@@ -284,8 +284,21 @@ window.iniciarMapa = async function() {
     attribution: '© OpenStreetMap contributors'
   }).addTo(mapa);
 
+  // Cluster: agrupa marcadores sobrepostos (vários leads no mesmo CEP).
+  // Ao clicar/aproximar, expande em "spider" pra ver cada um individualmente.
+  const cluster = L.markerClusterGroup({
+    iconCreateFunction: c => L.divIcon({
+      html: `<div>${c.getChildCount()}</div>`,
+      className: 'marker-cluster-pm',
+      iconSize: [40, 40],
+    }),
+    spiderfyOnMaxZoom: true,
+    showCoverageOnHover: false,
+    maxClusterRadius: 40,
+  });
+  mapa.addLayer(cluster);
+
   // Geocode em paralelo via AwesomeAPI (CEP → coordenadas, com cache local)
-  const markers = [];
   await _comConcorrencia(leads, CONCORRENCIA_GEOCODE, async (lead) => {
     if (window.mapaLeaflet !== mapa) return;
     const coords = await _coordsPorCep(lead.cep);
@@ -298,18 +311,15 @@ window.iniciarMapa = async function() {
       ? `<div style="color:#f97316;font-weight:600;margin-top:4px">Cliente${lead.vendedor ? ' • ' + _esc(lead.vendedor) : ''}</div>`
       : '';
     const popup = `<b>${_esc(label)}</b><br>${_esc(end)}<br>${_esc(tel)}${badge}`;
-    markers.push(
+    cluster.addLayer(
       L.marker([coords.lat, coords.lon], { icon: _icone(lead.eh_cliente) })
-        .addTo(mapa).bindPopup(popup)
+        .bindPopup(popup)
     );
   });
 
-  // Auto-zoom: ajusta o mapa para mostrar todos os marcadores
-  if (markers.length && window.mapaLeaflet === mapa) {
-    mapa.fitBounds(L.featureGroup(markers).getBounds(), {
-      padding: [40, 40],
-      maxZoom: 15,
-    });
+  // Auto-zoom: ajusta o mapa para mostrar todos os marcadores agrupados
+  if (cluster.getLayers().length && window.mapaLeaflet === mapa) {
+    mapa.fitBounds(cluster.getBounds(), { padding: [40, 40], maxZoom: 15 });
   }
 };
 

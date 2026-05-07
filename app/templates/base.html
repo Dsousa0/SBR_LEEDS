@@ -13,8 +13,17 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
         integrity="sha384-sHL9NAb7lN7rfvG5lfHpm643Xkcjzp4jFvuavGOndn6pjVqS6ny56CAt3nsEVT4H"
         crossorigin="anonymous" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css"
+        integrity="sha384-pmjIAcz2bAn0xukfxADbZIb3t8oRT9Sv0rvO+BR5Csr6Dhqq+nZs59P0pPKQJkEV"
+        crossorigin="anonymous" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css"
+        integrity="sha384-wgw+aLYNQ7dlhK47ZPK7FRACiq7ROZwgFNg0m04avm4CaXS+Z9Y7nMu8yNjBKYC+"
+        crossorigin="anonymous" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
           integrity="sha384-cxOPjt7s7Iz04uaHJceBmS+qpjv2JkIHNVcuOrM+YHwZOmJGBXI00mdUXEq65HTH"
+          crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"
+          integrity="sha384-eXVCORTRlv4FUUgS/xmOyr66XBVraen8ATNLMESp92FKXLAMiKkerixTiBvXriZr"
           crossorigin="anonymous"></script>
 
   <script>
@@ -52,6 +61,23 @@
     ::-webkit-scrollbar-track { background: #171717; }
     ::-webkit-scrollbar-thumb { background: #3a3a3a; border-radius: 3px; }
     ::-webkit-scrollbar-thumb:hover { background: #f97316; }
+
+    /* Cluster do Leaflet — tema laranja, sobrescreve o azul/verde/amarelo padrão */
+    .marker-cluster-pm {
+      background-color: rgba(249, 115, 22, 0.35);
+      border-radius: 50%;
+    }
+    .marker-cluster-pm div {
+      background-color: rgba(249, 115, 22, 0.9);
+      width: 30px; height: 30px;
+      margin: 5px;
+      border-radius: 50%;
+      color: #fff;
+      font-weight: 600;
+      text-align: center;
+      line-height: 30px;
+      font-size: 12px;
+    }
   </style>
 </head>
 <body class="min-h-screen">
