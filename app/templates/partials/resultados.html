@@ -483,14 +483,12 @@ window.iniciarMapa = async function() {
       .filter(Boolean).join(' ');
     const loc = [lead.municipio, lead.uf].filter(Boolean).join('/');
     const tel = lead.ddd_1 ? '(' + lead.ddd_1 + ') ' + lead.telefone_1 : '';
-    const badge = lead.eh_cliente
-      ? `<div style="color:#f97316;font-weight:600;margin-top:4px">✓ Cliente${lead.vendedor ? ' · ' + _esc(lead.vendedor) : ''}</div>`
+    const clienteInfo = lead.eh_cliente
+      ? ` <span style="color:#f97316;font-weight:600">✓ Cliente${lead.vendedor ? ' · ' + _esc(lead.vendedor) : ''}</span>`
       : '';
-    const tip = `<div style="font-weight:600;color:#fff;margin-bottom:2px">${_esc(label)}</div>`
-      + (end ? `<div style="color:#aaa">${_esc(end)}</div>` : '')
-      + (loc ? `<div style="color:#888;font-size:11px">${_esc(loc)}</div>` : '')
-      + (tel ? `<div style="color:#ccc;margin-top:3px">${_esc(tel)}</div>` : '')
-      + badge;
+    const detalhes = [end, loc, tel].filter(Boolean).map(s => _esc(s)).join(' &nbsp;·&nbsp; ');
+    const tip = `<div style="font-weight:600;color:#fff">${_esc(label)}${clienteInfo}</div>`
+      + (detalhes ? `<div style="color:#888;font-size:11px;margin-top:2px">${detalhes}</div>` : '');
     cluster.addLayer(
       L.marker([coords.lat, coords.lon], { icon: _icone(lead.eh_cliente) })
         .bindTooltip(tip, { direction: 'top', offset: [0, -12], className: 'pm-tip' })
