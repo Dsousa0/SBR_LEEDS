@@ -3,31 +3,22 @@
 {% block title %}SBR Leads — Busca de Leads{% endblock %}
 
 {% block content %}
-<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+<div class="space-y-4">
 
-  <!-- ========= PAINEL DE FILTROS ========= -->
-  <aside class="lg:col-span-1">
-    <div class="bg-[#171717] rounded-xl border border-[#2e2e2e] p-5 sticky top-4">
-      <h2 class="text-sm font-semibold text-[#aaa] mb-4 flex items-center gap-2 uppercase tracking-widest">
-        <svg class="w-4 h-4 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-            d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2a1 1 0 01-.293.707L13 13.414V19a1 1 0 01-.553.894l-4 2A1 1 0 017 21v-7.586L3.293 6.707A1 1 0 013 6V4z"/>
-        </svg>
-        Filtros
-      </h2>
-
+  <!-- ========= FILTROS STICKY ========= -->
+  <div class="sticky top-[53px] z-20 bg-[#0f0f0f] -mx-5 px-5 pb-2 pt-0">
+    <div class="bg-[#171717] rounded-xl border border-[#2e2e2e] px-5 py-4">
       <form id="filtros"
             hx-post="/buscar"
             hx-target="#resultado"
             hx-swap="innerHTML"
             hx-indicator="#spinner"
-            class="space-y-4">
+            class="flex flex-wrap items-end gap-3">
 
-        <!-- Segmento fixo: farmácias e drogarias -->
         <input type="hidden" name="segmento" value="farmacia" />
 
         <!-- Estado -->
-        <div>
+        <div class="flex-1 min-w-[150px]">
           <label class="block text-xs font-medium text-[#888] mb-1 uppercase tracking-wide">Estado</label>
           <select name="uf" id="sel-uf"
                   class="w-full rounded-lg bg-[#222] border border-[#3a3a3a] px-3 py-2 text-sm text-[#e5e5e5] focus:outline-none focus:border-orange-500 transition-colors"
@@ -43,7 +34,7 @@
         </div>
 
         <!-- Município -->
-        <div>
+        <div class="flex-1 min-w-[180px]">
           <label class="block text-xs font-medium text-[#888] mb-1 uppercase tracking-wide">Município</label>
           <select name="municipio_codigo" id="sel-municipio"
                   class="w-full rounded-lg bg-[#222] border border-[#3a3a3a] px-3 py-2 text-sm text-[#e5e5e5] focus:outline-none focus:border-orange-500 transition-colors">
@@ -51,89 +42,87 @@
           </select>
         </div>
 
-        <!-- Apenas ativas -->
-        <label class="flex items-center gap-2 cursor-pointer">
-          <input type="checkbox" name="apenas_ativas" value="true" checked
-                 class="rounded border-[#3a3a3a] bg-[#222] accent-orange-500" />
-          <span class="text-sm text-[#aaa]">Apenas empresas ativas</span>
-        </label>
-
         <!-- Porte -->
-        <div>
+        <div class="min-w-[120px]">
           <label class="block text-xs font-medium text-[#888] mb-1 uppercase tracking-wide">Porte</label>
           <select name="porte"
                   class="w-full rounded-lg bg-[#222] border border-[#3a3a3a] px-3 py-2 text-sm text-[#e5e5e5] focus:outline-none focus:border-orange-500 transition-colors">
             <option value="">Todos</option>
             <option value="01">MEI</option>
-            <option value="03">ME — Microempresa</option>
-            <option value="05">EPP — Pequeno Porte</option>
+            <option value="03">ME</option>
+            <option value="05">EPP</option>
             <option value="99">Demais</option>
           </select>
         </div>
 
-        <!-- Status do cliente (Pedido Mobile) -->
-        <div>
-          <label class="block text-xs font-medium text-[#888] mb-1 uppercase tracking-wide">Status do cliente</label>
+        <!-- Status do cliente -->
+        <div class="min-w-[150px]">
+          <label class="block text-xs font-medium text-[#888] mb-1 uppercase tracking-wide">Status</label>
           <select name="status_cliente"
                   class="w-full rounded-lg bg-[#222] border border-[#3a3a3a] px-3 py-2 text-sm text-[#e5e5e5] focus:outline-none focus:border-orange-500 transition-colors">
             <option value="">Todos</option>
-            <option value="cliente">Apenas clientes (Pedido Mobile)</option>
-            <option value="prospect">Apenas prospects (não clientes)</option>
+            <option value="cliente">Clientes</option>
+            <option value="prospect">Prospectos</option>
           </select>
         </div>
 
-        <!-- Botão buscar -->
-        <button type="submit"
-                class="w-full bg-orange-500 hover:bg-orange-600 text-white font-semibold py-2.5 rounded-lg transition-colors flex items-center justify-center gap-2">
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-              d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
-          </svg>
-          Buscar
-          <svg id="spinner" class="htmx-indicator animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
-            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
-            <path class="opacity-75" fill="currentColor"
-              d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
-          </svg>
-        </button>
+        <!-- Apenas ativas + Buscar -->
+        <div class="flex items-center gap-4 flex-shrink-0">
+          <label class="flex items-center gap-2 cursor-pointer">
+            <input type="checkbox" name="apenas_ativas" value="true" checked
+                   class="rounded border-[#3a3a3a] bg-[#222] accent-orange-500" />
+            <span class="text-sm text-[#aaa] whitespace-nowrap">Apenas ativas</span>
+          </label>
+
+          <button type="submit"
+                  class="bg-orange-500 hover:bg-orange-600 text-white font-semibold px-5 py-2 rounded-lg transition-colors flex items-center gap-2 whitespace-nowrap">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+            </svg>
+            Buscar
+            <svg id="spinner" class="htmx-indicator animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+              <path class="opacity-75" fill="currentColor"
+                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+            </svg>
+          </button>
+        </div>
+
       </form>
     </div>
-  </aside>
+  </div>
 
-  <!-- ========= ÁREA DE RESULTADOS ========= -->
-  <section class="lg:col-span-2 space-y-4">
-
-    <!-- Stats rápidas -->
-    <div class="grid grid-cols-3 gap-3">
-      <div class="bg-[#171717] rounded-xl border border-[#2e2e2e] p-4 text-center">
-        <div class="text-2xl font-bold text-orange-500">{{ "{:,}".format(stats.total_estabelecimentos).replace(",", ".") }}</div>
-        <div class="text-xs text-[#666] mt-0.5 uppercase tracking-wide">estabelecimentos</div>
-      </div>
-      <div class="bg-[#171717] rounded-xl border border-[#2e2e2e] p-4 text-center">
-        <div class="text-2xl font-bold text-orange-500">{{ "{:,}".format(stats.total_empresas).replace(",", ".") }}</div>
-        <div class="text-xs text-[#666] mt-0.5 uppercase tracking-wide">empresas</div>
-      </div>
-      <div class="bg-[#171717] rounded-xl border border-[#2e2e2e] p-4 text-center">
-        <div class="text-2xl font-bold text-orange-500">{{ stats.ultima_importacao or "—" }}</div>
-        <div class="text-xs text-[#666] mt-0.5 uppercase tracking-wide">última atualização</div>
-      </div>
+  <!-- ========= STATS RÁPIDAS ========= -->
+  <div class="grid grid-cols-3 gap-3">
+    <div class="bg-[#171717] rounded-xl border border-[#2e2e2e] p-4 text-center">
+      <div class="text-2xl font-bold text-orange-500">{{ "{:,}".format(stats.total_estabelecimentos).replace(",", ".") }}</div>
+      <div class="text-xs text-[#666] mt-0.5 uppercase tracking-wide">estabelecimentos</div>
     </div>
-
-    <!-- Pedido Mobile -->
-    {% include "partials/pedido_mobile_card.html" %}
-
-    <!-- Resultados (substituído pelo HTMX) -->
-    <div id="resultado">
-      <div class="bg-[#171717] rounded-xl border border-[#2e2e2e] p-12 text-center text-[#555]">
-        <svg class="w-12 h-12 mx-auto mb-3 opacity-30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
-            d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
-        </svg>
-        <p class="font-medium text-[#666]">Selecione os filtros e clique em Buscar</p>
-      </div>
+    <div class="bg-[#171717] rounded-xl border border-[#2e2e2e] p-4 text-center">
+      <div class="text-2xl font-bold text-orange-500">{{ "{:,}".format(stats.total_empresas).replace(",", ".") }}</div>
+      <div class="text-xs text-[#666] mt-0.5 uppercase tracking-wide">empresas</div>
     </div>
+    <div class="bg-[#171717] rounded-xl border border-[#2e2e2e] p-4 text-center">
+      <div class="text-2xl font-bold text-orange-500">{{ stats.ultima_importacao or "—" }}</div>
+      <div class="text-xs text-[#666] mt-0.5 uppercase tracking-wide">última atualização</div>
+    </div>
+  </div>
 
-  </section>
+  <!-- ========= PEDIDO MOBILE ========= -->
+  {% include "partials/pedido_mobile_card.html" %}
+
+  <!-- ========= RESULTADOS ========= -->
+  <div id="resultado">
+    <div class="bg-[#171717] rounded-xl border border-[#2e2e2e] p-12 text-center text-[#555]">
+      <svg class="w-12 h-12 mx-auto mb-3 opacity-30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+          d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+      </svg>
+      <p class="font-medium text-[#666]">Selecione os filtros e clique em Buscar</p>
+    </div>
+  </div>
+
 </div>
 {% endblock %}
 
