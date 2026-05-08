@@ -71,6 +71,24 @@
     #tabs-container.mapa-expandido #painel-mapa { flex: 1; min-height: 0; display: flex; flex-direction: column; }
     #tabs-container.mapa-expandido #mapa { flex: 1; height: auto !important; }
 
+    /* Tooltip do mapa — tema escuro */
+    .leaflet-tooltip.pm-tip {
+      background: #1c1c1c;
+      border: 1px solid #3a3a3a;
+      color: #e5e5e5;
+      border-radius: 10px;
+      padding: 8px 12px;
+      font-size: 12px;
+      line-height: 1.6;
+      box-shadow: 0 4px 20px rgba(0,0,0,.65);
+      max-width: 220px;
+      white-space: normal;
+    }
+    .leaflet-tooltip.pm-tip.leaflet-tooltip-top::before    { border-top-color:    #3a3a3a; }
+    .leaflet-tooltip.pm-tip.leaflet-tooltip-bottom::before { border-bottom-color: #3a3a3a; }
+    .leaflet-tooltip.pm-tip.leaflet-tooltip-left::before   { border-left-color:   #3a3a3a; }
+    .leaflet-tooltip.pm-tip.leaflet-tooltip-right::before  { border-right-color:  #3a3a3a; }
+
     /* Cluster do Leaflet — tema laranja, sobrescreve o azul/verde/amarelo padrão */
     .marker-cluster-pm {
       background-color: rgba(249, 115, 22, 0.35);

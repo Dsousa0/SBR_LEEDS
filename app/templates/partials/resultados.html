@@ -479,16 +479,21 @@ window.iniciarMapa = async function() {
     const coords = await _resolverCoords(lead);
     if (!coords || window.mapaLeaflet !== mapa) return;
     const label = lead.nome_fantasia || lead.razao_social || '';
-    const end = [lead.tipo_logradouro, lead.logradouro, lead.numero, lead.municipio + '/' + lead.uf]
+    const end = [lead.tipo_logradouro, lead.logradouro, lead.numero]
       .filter(Boolean).join(' ');
+    const loc = [lead.municipio, lead.uf].filter(Boolean).join('/');
     const tel = lead.ddd_1 ? '(' + lead.ddd_1 + ') ' + lead.telefone_1 : '';
     const badge = lead.eh_cliente
-      ? `<div style="color:#f97316;font-weight:600;margin-top:4px">Cliente${lead.vendedor ? ' • ' + _esc(lead.vendedor) : ''}</div>`
+      ? `<div style="color:#f97316;font-weight:600;margin-top:4px">✓ Cliente${lead.vendedor ? ' · ' + _esc(lead.vendedor) : ''}</div>`
       : '';
-    const popup = `<b>${_esc(label)}</b><br>${_esc(end)}<br>${_esc(tel)}${badge}`;
+    const tip = `<div style="font-weight:600;color:#fff;margin-bottom:2px">${_esc(label)}</div>`
+      + (end ? `<div style="color:#aaa">${_esc(end)}</div>` : '')
+      + (loc ? `<div style="color:#888;font-size:11px">${_esc(loc)}</div>` : '')
+      + (tel ? `<div style="color:#ccc;margin-top:3px">${_esc(tel)}</div>` : '')
+      + badge;
     cluster.addLayer(
       L.marker([coords.lat, coords.lon], { icon: _icone(lead.eh_cliente) })
-        .bindPopup(popup)
+        .bindTooltip(tip, { direction: 'top', offset: [0, -12], className: 'pm-tip' })
     );
   });
 
