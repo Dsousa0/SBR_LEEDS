@@ -35,6 +35,16 @@ def _bootstrap_usuarios():
             ALTER TABLE usuario
             ADD COLUMN IF NOT EXISTS trocar_senha BOOLEAN NOT NULL DEFAULT true
         """))
+        conn.execute(text("""
+            ALTER TABLE cliente_pedido_mobile
+            ADD COLUMN IF NOT EXISTS ultima_compra_em DATE
+        """))
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS pedido_mobile_config (
+                chave VARCHAR(50) PRIMARY KEY,
+                valor TEXT NOT NULL
+            )
+        """))
         conn.commit()
 
         count = conn.execute(text("SELECT COUNT(*) FROM usuario")).scalar()

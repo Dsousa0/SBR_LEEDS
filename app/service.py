@@ -1,4 +1,5 @@
 import math
+from datetime import date
 
 from fastapi import HTTPException
 from sqlalchemy import text
@@ -67,7 +68,8 @@ SELECT_LEADS = f"""
         emp.porte,
         emp.capital_social,
         pm.documento IS NOT NULL AS eh_cliente,
-        pm.vendedor   AS vendedor
+        pm.vendedor          AS vendedor,
+        pm.ultima_compra_em  AS ultima_compra_em
     {_FROM_LEADS}
 """
 
@@ -142,6 +144,8 @@ def row_to_lead(row) -> Lead:
         capital_social=float(row.capital_social) if row.capital_social else None,
         eh_cliente=bool(row.eh_cliente),
         vendedor=row.vendedor,
+        ultima_compra_em=row.ultima_compra_em,
+        dias_sem_compra=(date.today() - row.ultima_compra_em).days if row.ultima_compra_em else None,
     )
 
 

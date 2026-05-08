@@ -10,6 +10,7 @@ Apenas operações de leitura (GET) são executadas — nunca POST/PUT/DELETE.
 import logging
 import re
 import time
+from datetime import datetime
 
 import requests
 from sqlalchemy import text
@@ -19,7 +20,8 @@ from config import settings
 
 logger = logging.getLogger(__name__)
 
-ENDPOINT = "/clienteintegracao/versao"
+ENDPOINT         = "/clienteintegracao/versao"
+ENDPOINT_PEDIDOS = "/pedidointegracao/versao"
 TIMEOUT_SEGUNDOS = 60
 MAX_TENTATIVAS = 3
 
@@ -62,9 +64,9 @@ def _sync_em_andamento(db: Session) -> bool:
 _RESPOSTA_VAZIA: dict = {"dados": [], "totalPaginas": 0, "totalRegistros": 0}
 
 
-def _buscar_pagina(versao: int, page: int) -> dict:
+def _buscar_pagina(versao: int, page: int, endpoint: str = ENDPOINT) -> dict:
     user, pwd = _credenciais_ou_erro()
-    url = settings.pedido_mobile_base_url.rstrip("/") + ENDPOINT
+    url = settings.pedido_mobile_base_url.rstrip("/") + endpoint
 
     for tentativa in range(1, MAX_TENTATIVAS + 1):
         try:
@@ -111,6 +113,69 @@ _UPSERT_SQL = text("""
         atualizado_em  = NOW()
     RETURNING (xmax = 0) AS inserido
 """)
+
+
+def _versao_pedidos(db: Session) -> int:
+    return db.execute(
+        text(
+            "SELECT COALESCE(valor::int, 0) FROM pedido_mobile_config "
+            "WHERE chave = 'versao_pedidos'"
+        )
+    ).scalar() or 0
+
+
+def _salvar_versao_pedidos(db: Session, versao: int) -> None:
+    db.execute(
+        text("""
+            INSERT INTO pedido_mobile_config (chave, valor) VALUES ('versao_pedidos', :v)
+            ON CONFLICT (chave) DO UPDATE SET valor = :v
+        """),
+        {"v": str(versao)},
+    )
+
+
+_UPDATE_ULTIMA_COMPRA = text("""
+    UPDATE cliente_pedido_mobile
+       SET ultima_compra_em = :data
+     WHERE documento = :documento
+       AND (ultima_compra_em IS NULL OR ultima_compra_em < :data)
+""")
+
+
+def _sincronizar_pedidos(db: Session) -> None:
+    """Percorre pedidointegracao/versao e atualiza ultima_compra_em por cliente.
+    Usa versionamento incremental — apenas pedidos alterados desde o último sync.
+    """
+    versao_inicial = _versao_pedidos(db)
+    nova_versao = versao_inicial
+    page = 1
+
+    while True:
+        data = _buscar_pagina(versao_inicial, page, ENDPOINT_PEDIDOS)
+        nova_versao = max(nova_versao, data.get("ultimaVersao") or 0)
+        total_paginas = data.get("totalPaginas") or 0
+        pedidos = data.get("dados") or []
+
+        for pedido in pedidos:
+            doc = _normalizar_documento(pedido.get("clienteDocumento"))
+            emissao_str = pedido.get("pedidoEmissao")
+            if not doc or not emissao_str:
+                continue
+            try:
+                data_compra = datetime.strptime(emissao_str, "%d/%m/%Y").date()
+            except ValueError:
+                continue
+            db.execute(_UPDATE_ULTIMA_COMPRA, {"documento": doc, "data": data_compra})
+
+        db.commit()
+        logger.info("Pedidos: página %d/%d processada", page, total_paginas)
+
+        if page >= total_paginas:
+            break
+        page += 1
+
+    _salvar_versao_pedidos(db, nova_versao)
+    db.commit()
 
 
 def sincronizar(db: Session) -> dict:
@@ -209,6 +274,9 @@ def sincronizar(db: Session) -> dict:
         },
     )
     db.commit()
+
+    logger.info("Sincronizando datas de última compra via pedidointegracao...")
+    _sincronizar_pedidos(db)
 
     return {
         "total_registros": total,

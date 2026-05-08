@@ -1,3 +1,5 @@
+from datetime import date
+
 from pydantic import BaseModel
 
 
@@ -58,6 +60,8 @@ class Lead(BaseModel):
     capital_social: float | None
     eh_cliente: bool = False
     vendedor: str | None = None
+    ultima_compra_em: date | None = None
+    dias_sem_compra: int | None = None
 
 
 class BuscarResponse(BaseModel):

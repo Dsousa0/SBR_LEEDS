@@ -102,6 +102,16 @@
                 </svg>
                 Cliente{% if lead.vendedor %} • {{ lead.vendedor }}{% endif %}
               </span>
+              {% if lead.ultima_compra_em %}
+              <div class="text-[10px] text-[#888] mt-0.5 flex items-center gap-1">
+                <svg class="w-2.5 h-2.5 text-orange-500/60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                </svg>
+                Última compra: {{ lead.ultima_compra_em.strftime('%d/%m/%Y') }}
+                <span class="text-orange-500/70 font-medium">({{ lead.dias_sem_compra }}d)</span>
+              </div>
+              {% endif %}
               {% endif %}
             </div>
             <div class="text-xs text-[#555] mt-0.5">{{ lead.cnpj[:2] }}.{{ lead.cnpj[2:5] }}.{{ lead.cnpj[5:8] }}/{{ lead.cnpj[8:12] }}-{{ lead.cnpj[12:] }}</div>
