@@ -36,6 +36,32 @@ def _bootstrap_usuarios():
             ADD COLUMN IF NOT EXISTS trocar_senha BOOLEAN NOT NULL DEFAULT true
         """))
         conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS cliente_pedido_mobile (
+                documento      VARCHAR(14) PRIMARY KEY,
+                tipo_documento VARCHAR(4),
+                razao_social   VARCHAR(200),
+                nome_fantasia  VARCHAR(200),
+                vendedor       VARCHAR(100),
+                inativo        BOOLEAN DEFAULT FALSE,
+                municipio      VARCHAR(100),
+                uf             VARCHAR(2),
+                atualizado_em  TIMESTAMP DEFAULT NOW()
+            )
+        """))
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS pedido_mobile_sync (
+                id             SERIAL PRIMARY KEY,
+                iniciada_em    TIMESTAMP DEFAULT NOW(),
+                concluida_em   TIMESTAMP,
+                ultima_versao  BIGINT NOT NULL DEFAULT 0,
+                total_clientes INTEGER,
+                novos          INTEGER,
+                atualizados    INTEGER,
+                paginas        INTEGER,
+                erro           VARCHAR(500)
+            )
+        """))
+        conn.execute(text("""
             ALTER TABLE cliente_pedido_mobile
             ADD COLUMN IF NOT EXISTS ultima_compra_em DATE
         """))
