@@ -50,15 +50,28 @@
             class="aba px-5 py-3 text-sm font-medium flex items-center gap-1.5 text-[#666] hover:text-[#aaa] border-b-2 border-transparent transition-colors">
       Mapa
     </button>
-    <button onclick="alternarMapaExpandido()" id="btn-expandir-mapa" type="button"
-            class="hidden ml-auto mr-3 text-xs px-3 py-1.5 rounded-lg border border-[#3a3a3a] text-[#aaa] hover:border-orange-500 hover:text-orange-500 transition-colors flex items-center gap-1.5"
-            title="Alternar visualização ampliada (ESC para voltar)">
-      <svg id="ico-expandir" class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-          d="M4 8V4m0 0h4M4 4l5 5m11-5h-4m4 0v4m0-4l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5h-4m4 0v-4m0 4l-5-5"/>
-      </svg>
-      <span id="lbl-expandir">Expandir</span>
-    </button>
+    <div class="hidden ml-auto mr-3 flex items-center gap-2" id="btns-mapa">
+      <!-- Toggle satélite -->
+      <button onclick="alternarCamadaMapa()" id="btn-satelite" type="button"
+              class="text-xs px-3 py-1.5 rounded-lg border border-[#3a3a3a] text-[#aaa] hover:border-orange-500 hover:text-orange-500 transition-colors flex items-center gap-1.5"
+              title="Alternar entre mapa e satélite">
+        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+        </svg>
+        <span id="lbl-satelite">Satélite</span>
+      </button>
+      <!-- Expandir -->
+      <button onclick="alternarMapaExpandido()" id="btn-expandir-mapa" type="button"
+              class="text-xs px-3 py-1.5 rounded-lg border border-[#3a3a3a] text-[#aaa] hover:border-orange-500 hover:text-orange-500 transition-colors flex items-center gap-1.5"
+              title="Alternar visualização ampliada (ESC para voltar)">
+        <svg id="ico-expandir" class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M4 8V4m0 0h4M4 4l5 5m11-5h-4m4 0v4m0-4l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5h-4m4 0v-4m0 4l-5-5"/>
+        </svg>
+        <span id="lbl-expandir">Expandir</span>
+      </button>
+    </div>
   </div>
 
   <!-- Tabela -->
@@ -315,8 +328,8 @@ window.mostrarAba = function(aba) {
   document.getElementById('aba-mapa').className =
     'aba px-5 py-3 text-sm font-medium flex items-center gap-1.5 border-b-2 ' +
     (aba === 'mapa' ? 'border-orange-500 text-orange-500' : 'border-transparent text-[#666] hover:text-[#aaa]');
-  document.getElementById('btn-expandir-mapa').classList.toggle('hidden', aba !== 'mapa');
-  document.getElementById('btn-expandir-mapa').classList.toggle('flex', aba === 'mapa');
+  document.getElementById('btns-mapa').classList.toggle('hidden', aba !== 'mapa');
+  document.getElementById('btns-mapa').classList.toggle('flex', aba === 'mapa');
   if (aba === 'mapa') window.iniciarMapa();
 };
 
@@ -329,6 +342,26 @@ window.alternarMapaExpandido = function() {
   lbl.textContent = expandido ? 'Reduzir' : 'Expandir';
   // Leaflet precisa recalcular dimensões ao mudar o tamanho do container
   if (window.mapaLeaflet) setTimeout(() => window.mapaLeaflet.invalidateSize(), 200);
+};
+
+function _atualizarBtnSatelite(satelite) {
+  const lbl = document.getElementById('lbl-satelite');
+  if (lbl) lbl.textContent = satelite ? 'Mapa' : 'Satélite';
+}
+
+window.alternarCamadaMapa = function() {
+  if (!window.mapaLeaflet) return;
+  const usaSat = window.mapaLeaflet.hasLayer(window._camadaSat);
+  if (usaSat) {
+    window.mapaLeaflet.removeLayer(window._camadaSat);
+    window._camadaRua.addTo(window.mapaLeaflet);
+    localStorage.setItem('pm_camada', 'rua');
+  } else {
+    window.mapaLeaflet.removeLayer(window._camadaRua);
+    window._camadaSat.addTo(window.mapaLeaflet);
+    localStorage.setItem('pm_camada', 'satelite');
+  }
+  _atualizarBtnSatelite(!usaSat);
 };
 
 // ESC sai do modo expandido
@@ -354,9 +387,19 @@ window.iniciarMapa = async function() {
 
   const mapa = L.map('mapa').setView([-15.77, -47.93], 5);
   window.mapaLeaflet = mapa;
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    attribution: '© OpenStreetMap contributors'
-  }).addTo(mapa);
+
+  const camadaRua = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '© OpenStreetMap contributors', maxZoom: 19,
+  });
+  const camadaSat = L.tileLayer(
+    'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+    { attribution: '© Esri', maxZoom: 19 }
+  );
+  const usaSat = localStorage.getItem('pm_camada') === 'satelite';
+  (usaSat ? camadaSat : camadaRua).addTo(mapa);
+  window._camadaRua = camadaRua;
+  window._camadaSat = camadaSat;
+  _atualizarBtnSatelite(usaSat);
 
   // Cluster: agrupa marcadores sobrepostos (vários leads no mesmo CEP).
   // Ao clicar/aproximar, expande em "spider" pra ver cada um individualmente.
