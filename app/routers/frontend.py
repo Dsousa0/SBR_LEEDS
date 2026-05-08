@@ -1,6 +1,7 @@
 import json
+import logging
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, BackgroundTasks, Depends, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import text
@@ -8,13 +9,25 @@ from sqlalchemy.exc import ProgrammingError
 from sqlalchemy.orm import Session
 
 from auth import require_login
-from database import get_db
+from database import get_db, SessionLocal
 from routers.api import _UFS
 from schemas import BuscarRequest, Stats, UF, Municipio, Cnae
 from service import ATALHOS, buscar, buscar_para_mapa
 
 LIMITE_MAPA = 5000
-from pedido_mobile import sincronizar, ultima_sync, total_clientes, SyncError
+from pedido_mobile import sincronizar, ultima_sync, total_clientes, SyncError, sync_em_andamento
+
+logger = logging.getLogger(__name__)
+
+
+def _sincronizar_bg() -> None:
+    db = SessionLocal()
+    try:
+        sincronizar(db)
+    except Exception:
+        logger.exception("Erro na sincronização em background")
+    finally:
+        db.close()
 
 templates = Jinja2Templates(directory="templates")
 router = APIRouter()
@@ -76,24 +89,42 @@ def pagina_inicial(
 @router.post("/sync-clientes", response_class=HTMLResponse)
 def sync_clientes(
     request: Request,
+    background_tasks: BackgroundTasks,
     current_user: dict = Depends(require_login),
     db: Session = Depends(get_db),
 ):
-    try:
-        resultado = sincronizar(db)
-        return templates.TemplateResponse("partials/pedido_mobile_card.html", {
-            "request": request,
-            "pm": _info_pedido_mobile(db),
-            "resultado": resultado,
-            "erro": None,
-        })
-    except SyncError as e:
-        return templates.TemplateResponse("partials/pedido_mobile_card.html", {
-            "request": request,
-            "pm": _info_pedido_mobile(db),
-            "resultado": None,
-            "erro": str(e),
-        })
+    erro = None
+    em_andamento = sync_em_andamento(db)
+    if not em_andamento:
+        try:
+            background_tasks.add_task(_sincronizar_bg)
+            em_andamento = True
+        except SyncError as e:
+            erro = str(e)
+
+    return templates.TemplateResponse("partials/pedido_mobile_card.html", {
+        "request": request,
+        "pm": _info_pedido_mobile(db),
+        "sincronizando": em_andamento,
+        "resultado": None,
+        "erro": erro,
+    })
+
+
+@router.get("/sync-status", response_class=HTMLResponse)
+def sync_status(
+    request: Request,
+    current_user: dict = Depends(require_login),
+    db: Session = Depends(get_db),
+):
+    em_andamento = sync_em_andamento(db)
+    return templates.TemplateResponse("partials/pedido_mobile_card.html", {
+        "request": request,
+        "pm": _info_pedido_mobile(db),
+        "sincronizando": em_andamento,
+        "resultado": None,
+        "erro": None,
+    })
 
 
 @router.get("/municipios-options", response_class=HTMLResponse)

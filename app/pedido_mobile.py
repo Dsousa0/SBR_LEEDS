@@ -63,6 +63,10 @@ def _sync_em_andamento(db: Session) -> bool:
     ).scalar())
 
 
+def sync_em_andamento(db: Session) -> bool:
+    return _sync_em_andamento(db)
+
+
 _RESPOSTA_VAZIA: dict = {"dados": [], "totalPaginas": 0, "totalRegistros": 0}
 
 
