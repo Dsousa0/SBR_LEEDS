@@ -1,172 +1,201 @@
-# Prospec Leads
+# SBR Leads
 
-Ferramenta pessoal de prospecção de leads usando a base pública de CNPJs da Receita Federal.
+Ferramenta interna de prospecção de leads B2B usando a base pública de CNPJs da Receita Federal, com integração ao Pedido Mobile para cruzar prospectos com a carteira atual de clientes.
 
-Permite filtrar empresas por **estado, cidade e CNAE** (segmento de atuação), retornando uma lista de potenciais clientes com nome, endereço, telefone, e-mail e demais dados cadastrais — tudo a partir de dados públicos oficiais, sem custos de API.
+## Funcionalidades
 
-## Status do Projeto
-
-🟡 **Etapa 2 — Importação da base da Receita Federal** (pronta para executar)
-
-### Roadmap
-
-- [x] **Etapa 1** — Setup do ambiente local (Docker + PostgreSQL + FastAPI base)
-- [x] **Etapa 2** — Scripts ETL implementados (download + import + validação)
-- [ ] **Etapa 3** — Backend completo (endpoints de busca, filtros, exportação)
-- [ ] **Etapa 4** — Frontend (HTMX + Jinja2 + TailwindCSS + Leaflet)
-- [ ] **Etapa 5** — Refinamento local e testes
-- [ ] **Etapa 6** — Deploy em VPS Hostinger (produção)
+- **Busca filtrada** por estado, município, porte e status de cliente (com scroll automático para os resultados)
+- **Listagem paginada** com razão social, endereço, telefone, e-mail, porte e capital social
+- **Modal de detalhes** — clique em qualquer linha para ver todas as informações do estabelecimento
+- **Mapa interativo** (Leaflet) com clustering de marcadores, tooltip no hover e alternância entre OSM e satélite ESRI
+- **Geocodificação** por endereço completo via Photon + fallback por CEP via AwesomeAPI, com validação de cidade para evitar marcadores errados
+- **Exportação** em CSV e XLSX
+- **Integração Pedido Mobile** — sincroniza clientes e datas de última compra; leads já clientes aparecem com badge laranja e dias sem comprar
+- **Autenticação** — JWT via cookie HTTPOnly, dois papéis (admin / usuário), troca obrigatória de senha no primeiro acesso
+- **Painel de administração** — criação, ativação/desativação e reset de senha de usuários
 
 ## Stack
 
-- **Backend:** Python 3.11 + FastAPI
-- **Banco:** PostgreSQL 16
-- **Frontend:** HTMX + Jinja2 + TailwindCSS + Leaflet (a partir da Etapa 4)
-- **Container:** Docker + Docker Compose
-- **Fonte de dados:** [Dados Abertos CNPJ - Receita Federal](https://dados.gov.br/dados/conjuntos-dados/cadastro-nacional-da-pessoa-juridica---cnpj)
+| Camada | Tecnologia |
+|---|---|
+| Backend | Python 3.11 + FastAPI 0.115 |
+| Banco | PostgreSQL 16 |
+| Frontend | HTMX 1.9 + Jinja2 + TailwindCSS CDN |
+| Mapa | Leaflet 1.9 + Leaflet.markercluster |
+| Autenticação | python-jose + passlib/bcrypt |
+| Exportação | openpyxl |
+| Container | Docker + Docker Compose |
+| Proxy (produção) | Caddy |
+| Fonte de dados | [CNPJ Aberto — Receita Federal](https://dados.gov.br/dados/conjuntos-dados/cadastro-nacional-da-pessoa-juridica---cnpj) |
 
 ## Pré-requisitos
 
-- **Docker Desktop** instalado e rodando ([download](https://www.docker.com/products/docker-desktop/))
-- **Git** instalado
-- **VS Code** com a extensão **Dev Containers** (recomendado)
-- Mínimo **80GB de espaço livre em disco** (base completa do CNPJ)
-- Mínimo **8GB de RAM** (16GB recomendado)
-- **SSD** fortemente recomendado para a importação
+- **Docker Desktop** rodando ([download](https://www.docker.com/products/docker-desktop/))
+- **Git**
+- Mínimo **80 GB de espaço livre** (base completa do CNPJ)
+- Mínimo **8 GB de RAM** (16 GB recomendado)
+- **SSD** recomendado para a importação
 
 ### Configuração do Docker Desktop (Windows)
 
-Antes de subir o projeto, ajuste em **Docker Desktop → Settings → Resources → Advanced**:
+**Settings → Resources → Advanced:**
 
-- **Memory:** 6GB (mínimo) — 8GB recomendado
-- **CPUs:** 4 (mínimo)
-- **Disk image size:** 100GB
+- Memory: 6 GB (mínimo) — 8 GB recomendado
+- CPUs: 4+
+- Disk image size: 100 GB+
 
-## Como Rodar Localmente
+## Instalação
 
-```powershell
+```bash
 # 1. Clone o repositório
-git clone https://github.com/SEU_USUARIO/prospec-leads.git
-cd prospec-leads
+git clone https://github.com/Dsousa0/SBR_LEADS.git
+cd SBR_LEADS
 
-# 2. Crie o arquivo .env a partir do template
-Copy-Item .env.example .env
-# Abra o .env e ajuste as senhas (campos POSTGRES_PASSWORD e PGADMIN_PASSWORD)
+# 2. Crie o .env
+cp .env.example .env
+# Edite o .env e preencha as senhas e credenciais
 
-# 3. Suba os containers (primeira vez baixa imagens, demora alguns minutos)
+# 3. Suba os containers
 docker compose up -d --build
 
-# 4. Verifique que tudo subiu
+# 4. Verifique
 docker compose ps
 ```
 
-Acesse:
+Acesse **http://localhost:8000** e faça login com:
 
-- **API:** http://localhost:8000
-- **Swagger UI:** http://localhost:8000/docs
-- **Health check:** http://localhost:8000/health
-- **pgAdmin:** http://localhost:5050
+- **E-mail:** `admin@sbr.local`
+- **Senha:** `admin123`
 
-### Comandos Úteis
+> O admin padrão é criado automaticamente na primeira inicialização. Troque a senha em `/admin/usuarios` imediatamente.
 
-```powershell
-# Ver logs em tempo real
-docker compose logs -f
+## Variáveis de Ambiente
 
-# Ver logs de um serviço específico
+Copie `.env.example` para `.env` e preencha:
+
+| Variável | Descrição |
+|---|---|
+| `APP_ENV` | `development` ou `production` |
+| `SECRET_KEY` | Chave JWT — gere com `python -c "import secrets; print(secrets.token_hex(32))"` |
+| `POSTGRES_USER` | Usuário do banco |
+| `POSTGRES_PASSWORD` | Senha do banco |
+| `POSTGRES_DB` | Nome do banco |
+| `PGADMIN_EMAIL` | Login do pgAdmin |
+| `PGADMIN_PASSWORD` | Senha do pgAdmin |
+| `PEDIDO_MOBILE_BASE_URL` | URL base da API do Pedido Mobile |
+| `PEDIDO_MOBILE_USER` | Usuário da API do Pedido Mobile |
+| `PEDIDO_MOBILE_PASSWORD` | Senha da API do Pedido Mobile |
+
+## Importando a Base da Receita Federal
+
+Com os containers rodando, execute na ordem:
+
+```bash
+# 1. Baixar os arquivos (~5 GB, 30–60 min)
+docker compose --profile etl run --rm etl python download.py
+
+# 2. Importar para o PostgreSQL (~3–8h, recomendado deixar à noite)
+docker compose --profile etl run --rm etl python importer.py
+
+# 3. Validar
+docker compose --profile etl run --rm etl python validators.py
+```
+
+Consulte [`etl/README.md`](etl/README.md) para opções detalhadas.
+
+## Integração Pedido Mobile
+
+A sincronização busca dois endpoints da API:
+
+- `/clienteintegracao/versao` — carteira de clientes (versionamento incremental)
+- `/pedidointegracao/versao` — pedidos para calcular a data da última compra
+
+Clique em **Sincronizar** no card do painel inicial. A sincronização é incremental — apenas registros alterados desde o último sync são processados.
+
+## Comandos Úteis
+
+```bash
+# Logs em tempo real
 docker compose logs -f app
-docker compose logs -f postgres
 
-# Parar tudo (preserva os dados)
+# Parar (preserva dados)
 docker compose down
 
-# Parar e APAGAR dados (cuidado!)
+# Parar e apagar volumes (cuidado!)
 docker compose down -v
 
 # Reconstruir após mudanças no Dockerfile
 docker compose up -d --build
 
-# Acessar shell do container app
+# Shell do container
 docker compose exec app bash
 
-# Acessar psql diretamente
+# psql direto
 docker compose exec postgres psql -U prospec -d prospec_db
 ```
-
-### Conectando o pgAdmin ao Postgres
-
-1. Acesse http://localhost:5050 e faça login com as credenciais do `.env`
-2. Clique direito em **Servers → Register → Server**
-3. **General → Name:** `Prospec Local`
-4. **Connection:**
-   - **Host:** `postgres` (nome do container, NÃO `localhost`)
-   - **Port:** `5432`
-   - **Database:** `prospec_db`
-   - **Username:** `prospec`
-   - **Password:** valor do `.env`
 
 ## Estrutura do Projeto
 
 ```
-prospec-leads/
-├── docker-compose.yml      # Orquestração dos containers (+ serviço etl)
-├── .env.example            # Template de variáveis (commitado)
-├── .env                    # Variáveis reais (NÃO commitado)
-├── .gitignore
-├── README.md
-├── SETUP.md                # Guia passo a passo para setup inicial
-├── app/                    # Backend FastAPI
+SBR_LEADS/
+├── docker-compose.yml          # Ambiente local
+├── docker-compose.prod.yml     # Ambiente de produção (Caddy)
+├── Caddyfile                   # Configuração do proxy reverso
+├── .env.example                # Template de variáveis (commitado)
+├── app/
 │   ├── Dockerfile
 │   ├── requirements.txt
-│   └── main.py
-├── etl/                    # Scripts de importação da Receita Federal (Etapa 2)
-│   ├── schema.sql          # DDL de todas as tabelas CNPJ
-│   ├── download.py         # Baixa os ZIPs mais recentes
-│   ├── importer.py         # Importa via COPY FROM STDIN
-│   ├── update_monthly.py   # Atualização mensal automatizada
-│   └── validators.py       # Queries de validação pós-importação
-├── docs/                   # Documentação técnica
+│   ├── main.py                 # Startup, bootstrap do banco, exception handlers
+│   ├── auth.py                 # JWT, require_login, require_admin
+│   ├── config.py               # Settings via pydantic-settings
+│   ├── database.py             # Engine e sessão SQLAlchemy
+│   ├── schemas.py              # Modelos Pydantic
+│   ├── service.py              # Queries, build_where, buscar, buscar_para_mapa
+│   ├── pedido_mobile.py        # Sync com API externa (clientes + pedidos)
+│   ├── routers/
+│   │   ├── frontend.py         # Rotas HTML (HTMX)
+│   │   ├── api.py              # Rotas REST (CSV/XLSX)
+│   │   ├── admin.py            # Gestão de usuários
+│   │   └── auth_router.py      # Login, logout, troca de senha
+│   └── templates/
+│       ├── base.html
+│       ├── index.html          # Página principal com filtros sticky
+│       ├── login.html
+│       ├── trocar_senha.html
+│       ├── admin/
+│       └── partials/
+│           ├── resultados.html # Tabela + mapa + modal + geocodificação
+│           ├── pedido_mobile_card.html
+│           ├── municipios_options.html
+│           └── cnaes_options.html
+├── etl/
+│   ├── schema.sql              # DDL completo das tabelas CNPJ
+│   ├── download.py             # Baixa ZIPs da Receita Federal
+│   ├── importer.py             # Importa via COPY FROM STDIN
+│   ├── update_monthly.py       # Atualização mensal
+│   ├── validators.py           # Validação pós-importação
+│   └── sync_pedido_mobile.py   # Sync avulso do Pedido Mobile
+├── docs/
 │   ├── ARCHITECTURE.md
 │   ├── ETAPAS.md
-│   └── CLAUDE.md           # Guia do projeto para o Claude Code
-└── data/                   # Volumes persistidos (NÃO commitado)
-    ├── postgres/
-    └── pgadmin/
+│   └── CLAUDE.md
+└── data/                       # Volumes persistidos (não commitado)
 ```
 
-## Etapa 2 — Importar a Base da Receita Federal
+## Endpoints Principais
 
-Com os containers rodando, execute na ordem:
-
-```powershell
-# 1. Baixar os arquivos (~5 GB, pode levar 30-60 min dependendo da internet)
-docker compose --profile etl run --rm etl python download.py
-
-# 2. Importar para o PostgreSQL (~3-8h, recomendado deixar rodando à noite)
-docker compose --profile etl run --rm etl python importer.py
-
-# 3. Validar a importação
-docker compose --profile etl run --rm etl python validators.py
-```
-
-Consulte [`etl/README.md`](etl/README.md) para todas as opções disponíveis.
-
-## Documentação Adicional
-
-- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — Decisões técnicas e arquitetura
-- [`docs/ETAPAS.md`](docs/ETAPAS.md) — Detalhamento de cada etapa do roadmap
-- [`docs/CLAUDE.md`](docs/CLAUDE.md) — Contexto e instruções para o Claude Code
-
-## Validação da Etapa 1
-
-A Etapa 1 está concluída quando:
-
-- [x] `docker compose ps` mostra os 3 containers rodando
-- [x] `http://localhost:8000/` retorna o JSON de status
-- [x] `http://localhost:8000/health` retorna `"database": "connected"`
-- [x] `http://localhost:5050` carrega o pgAdmin
-- [x] pgAdmin consegue conectar ao Postgres usando o host `postgres`
+| Método | Rota | Descrição |
+|---|---|---|
+| `GET` | `/` | Página principal |
+| `POST` | `/buscar` | Busca com filtros (HTMX) |
+| `POST` | `/exportar.csv` | Exporta resultados em CSV |
+| `POST` | `/exportar.xlsx` | Exporta resultados em XLSX |
+| `POST` | `/sync-clientes` | Sincroniza Pedido Mobile (HTMX) |
+| `GET` | `/admin/usuarios` | Gestão de usuários (admin) |
+| `GET` | `/health` | Health check do banco |
+| `GET` | `/login` | Tela de login |
+| `GET` | `/logout` | Encerrar sessão |
 
 ## Licença
 
-Uso pessoal. Os dados utilizados são públicos, fornecidos pela Receita Federal do Brasil.
+Uso interno. Os dados utilizados são públicos, fornecidos pela Receita Federal do Brasil via [Dados Abertos](https://dados.gov.br).
