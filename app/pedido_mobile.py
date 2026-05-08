@@ -332,7 +332,9 @@ def ultima_sync(db: Session) -> dict | None:
     if not row:
         return None
     concluida_em = row.concluida_em
-    if concluida_em and concluida_em.tzinfo is not None:
+    if concluida_em:
+        if concluida_em.tzinfo is None:
+            concluida_em = concluida_em.replace(tzinfo=timezone.utc)
         concluida_em = concluida_em.astimezone(BRT)
     return {
         "concluida_em":   concluida_em,
