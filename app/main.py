@@ -1,20 +1,80 @@
 """
-Prospec Leads — API principal
+SBR Leads — API principal
 """
-from fastapi import FastAPI
-from fastapi.staticfiles import StaticFiles
+from contextlib import asynccontextmanager
+
+from fastapi import FastAPI, Request
+from fastapi.responses import RedirectResponse
 from sqlalchemy import text
 
+from auth import NotAdminException, NotAuthenticatedException, hash_senha
 from database import engine
+from routers.admin import router as admin_router
 from routers.api import router as api_router
+from routers.auth_router import router as auth_router
 from routers.frontend import router as frontend_router
 
+
+def _bootstrap_usuarios():
+    with engine.connect() as conn:
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS usuario (
+                id         UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+                email      VARCHAR(255) UNIQUE NOT NULL,
+                nome       VARCHAR(100) NOT NULL,
+                senha_hash VARCHAR(200) NOT NULL,
+                role       VARCHAR(10)  NOT NULL DEFAULT 'user'
+                                        CHECK (role IN ('admin', 'user')),
+                ativo      BOOLEAN      NOT NULL DEFAULT true,
+                criado_em  TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+            )
+        """))
+        conn.commit()
+
+        count = conn.execute(text("SELECT COUNT(*) FROM usuario")).scalar()
+        if count == 0:
+            conn.execute(
+                text("""
+                    INSERT INTO usuario (email, nome, senha_hash, role)
+                    VALUES ('admin@sbr.local', 'Administrador', :hash, 'admin')
+                """),
+                {"hash": hash_senha("admin123")},
+            )
+            conn.commit()
+            print("\n" + "=" * 55)
+            print("  ADMIN PADRÃO CRIADO")
+            print("  E-mail : admin@sbr.local")
+            print("  Senha  : admin123")
+            print("  Altere a senha em /admin/usuarios após o login!")
+            print("=" * 55 + "\n")
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    _bootstrap_usuarios()
+    yield
+
+
 app = FastAPI(
-    title="Prospec Leads",
-    version="0.2.0",
+    title="SBR Leads",
+    version="0.3.0",
     description="Ferramenta de prospecção de leads via base pública da Receita Federal",
+    lifespan=lifespan,
 )
 
+
+@app.exception_handler(NotAuthenticatedException)
+async def not_authenticated_handler(request: Request, exc: NotAuthenticatedException):
+    return RedirectResponse(url="/login", status_code=302)
+
+
+@app.exception_handler(NotAdminException)
+async def not_admin_handler(request: Request, exc: NotAdminException):
+    return RedirectResponse(url="/", status_code=302)
+
+
+app.include_router(auth_router)
+app.include_router(admin_router)
 app.include_router(api_router)
 app.include_router(frontend_router)
 

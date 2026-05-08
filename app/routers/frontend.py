@@ -1,12 +1,13 @@
 import json
 
-from fastapi import APIRouter, Depends, Form, Request
+from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import text
 from sqlalchemy.exc import ProgrammingError
 from sqlalchemy.orm import Session
 
+from auth import require_login
 from database import get_db
 from routers.api import _UFS
 from schemas import BuscarRequest, Stats, UF, Municipio, Cnae
@@ -54,12 +55,17 @@ def _info_pedido_mobile(db: Session) -> dict:
 
 
 @router.get("/", response_class=HTMLResponse)
-def pagina_inicial(request: Request, db: Session = Depends(get_db)):
+def pagina_inicial(
+    request: Request,
+    current_user: dict = Depends(require_login),
+    db: Session = Depends(get_db),
+):
     stats = _get_stats(db)
     ufs = [UF(sigla=s, nome=n) for s, n in _UFS]
     atalhos_view = [{"segmento": a["segmento"], "descricao": a["descricao"]} for a in ATALHOS]
     return templates.TemplateResponse("index.html", {
         "request": request,
+        "user": current_user,
         "ufs": ufs,
         "atalhos": atalhos_view,
         "stats": stats,
@@ -68,7 +74,11 @@ def pagina_inicial(request: Request, db: Session = Depends(get_db)):
 
 
 @router.post("/sync-clientes", response_class=HTMLResponse)
-def sync_clientes(request: Request, db: Session = Depends(get_db)):
+def sync_clientes(
+    request: Request,
+    current_user: dict = Depends(require_login),
+    db: Session = Depends(get_db),
+):
     try:
         resultado = sincronizar(db)
         return templates.TemplateResponse("partials/pedido_mobile_card.html", {
@@ -87,7 +97,12 @@ def sync_clientes(request: Request, db: Session = Depends(get_db)):
 
 
 @router.get("/municipios-options", response_class=HTMLResponse)
-def municipios_options(request: Request, uf: str | None = None, db: Session = Depends(get_db)):
+def municipios_options(
+    request: Request,
+    uf: str | None = None,
+    current_user: dict = Depends(require_login),
+    db: Session = Depends(get_db),
+):
     municipios = []
     if uf:
         rows = db.execute(
@@ -108,7 +123,12 @@ def municipios_options(request: Request, uf: str | None = None, db: Session = De
 
 
 @router.get("/cnaes-options", response_class=HTMLResponse)
-def cnaes_options(request: Request, q: str = "", db: Session = Depends(get_db)):
+def cnaes_options(
+    request: Request,
+    q: str = "",
+    current_user: dict = Depends(require_login),
+    db: Session = Depends(get_db),
+):
     cnaes = []
     if q.strip():
         rows = db.execute(
@@ -123,7 +143,11 @@ def cnaes_options(request: Request, q: str = "", db: Session = Depends(get_db)):
 
 
 @router.post("/buscar", response_class=HTMLResponse)
-async def buscar_html(request: Request, db: Session = Depends(get_db)):
+async def buscar_html(
+    request: Request,
+    current_user: dict = Depends(require_login),
+    db: Session = Depends(get_db),
+):
     form = await request.form()
 
     uf = form.get("uf") or None
@@ -151,8 +175,6 @@ async def buscar_html(request: Request, db: Session = Depends(get_db)):
 
     resultado = buscar(req, db)
 
-    # O mapa precisa de todos os leads do filtro (não só os 50 da página atual).
-    # Limita a LIMITE_MAPA pra não estourar JSON enorme nem geocoder.
     leads_mapa = buscar_para_mapa(req, db, limite=LIMITE_MAPA)
     leads_json = json.dumps([{
         "cnpj": l.cnpj,
@@ -180,7 +202,11 @@ async def buscar_html(request: Request, db: Session = Depends(get_db)):
 
 
 @router.post("/exportar.csv")
-async def exportar_csv_form(request: Request, db: Session = Depends(get_db)):
+async def exportar_csv_form(
+    request: Request,
+    current_user: dict = Depends(require_login),
+    db: Session = Depends(get_db),
+):
     from routers.api import exportar_csv
     form = await request.form()
     req = _form_to_req(form)
@@ -188,7 +214,11 @@ async def exportar_csv_form(request: Request, db: Session = Depends(get_db)):
 
 
 @router.post("/exportar.xlsx")
-async def exportar_xlsx_form(request: Request, db: Session = Depends(get_db)):
+async def exportar_xlsx_form(
+    request: Request,
+    current_user: dict = Depends(require_login),
+    db: Session = Depends(get_db),
+):
     from routers.api import exportar_xlsx
     form = await request.form()
     req = _form_to_req(form)
@@ -196,8 +226,6 @@ async def exportar_xlsx_form(request: Request, db: Session = Depends(get_db)):
 
 
 def _form_to_req(form) -> BuscarRequest:
-    # Usado apenas para exportação. O LIMITE_EXPORTACAO em api.py é a fonte
-    # da verdade; page_size aqui só precisa caber no validator do BuscarRequest.
     cnaes_raw = form.get("cnaes") or ""
     return BuscarRequest(
         uf=form.get("uf") or None,

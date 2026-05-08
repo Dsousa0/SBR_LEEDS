@@ -41,6 +41,16 @@
 3. Para mudanças estruturais (stack, arquitetura), pergunte antes
 4. Para implementação dentro de uma etapa já definida, pode prosseguir
 
+## Regra Obrigatória — agnostic-core
+
+> ✅ **Antes de qualquer implementação**, consultar `.agnostic-core/` para identificar skills ou agents relevantes para a tarefa em andamento. Usar o que for aplicável antes de escrever código.
+>
+> - Skills de segurança → `.agnostic-core/skills/security/`
+> - Skills de backend → `.agnostic-core/skills/backend/`
+> - Skills de frontend → `.agnostic-core/skills/frontend/`
+> - Skills de testes → `.agnostic-core/skills/testing/`
+> - Skills comportamentais (sem notificação) → `.agnostic-core/skills/behavioral/`
+
 ---
 
 ## Acervo de Referencia - agnostic-core
