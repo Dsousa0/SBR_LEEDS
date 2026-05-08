@@ -229,7 +229,7 @@ const leads = {{ leads_json | safe }};
 const paginaLeads = {{ pagina_json | safe }};
 
 const CONCORRENCIA_GEOCODE = 6;  // Photon pede uso comedido (~1/s/usuário)
-const CACHE_PREFIXO = 'pm_';      // pm_addr_<cnpj> e pm_cep_<cep>
+const CACHE_PREFIXO = 'pm2_';     // pm2_addr_<cnpj> e pm2_cep_<cep> (v2: valida cidade)
 
 // Bounding box aproximado do Brasil, pra rejeitar resultados fora do país
 // (Photon às vezes mata-mata pra Marrocos, etc.)
@@ -276,11 +276,23 @@ function _dentroBrasil(lat, lon) {
          lon >= BRASIL_LON_MIN && lon <= BRASIL_LON_MAX;
 }
 
+// Normaliza string para comparação: minúsculas sem acentos
+function _norm(s) {
+  return String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+}
+
+// Retorna true se as duas cidades parecem ser a mesma (comparação parcial bidirecional)
+function _cidadeOk(esperada, retornada) {
+  if (!esperada || !retornada) return true; // sem dado suficiente, não rejeita
+  const a = _norm(esperada), b = _norm(retornada);
+  return a.includes(b) || b.includes(a);
+}
+
 // Geocoder primário: por endereço completo via Photon (open-source/komoot).
 // CORS habilitado, dados OSM, atinge precisão de logradouro+nº quando disponível.
 async function _coordsPorEndereco(lead) {
   if (!lead.cnpj) return null;
-  const chave = 'pm_addr_' + lead.cnpj;
+  const chave = 'pm2_addr_' + lead.cnpj;
   const cached = _cacheGet(chave);
   if (cached !== null) return cached.lat ? cached : null;
 
@@ -305,6 +317,13 @@ async function _coordsPorEndereco(lead) {
       _cacheSet(chave, { lat: null });
       return null;
     }
+    // Rejeita se a cidade retornada pelo Photon for diferente da cidade do lead
+    const props = f.properties || {};
+    const cidadeRetornada = props.city || props.locality || props.name || '';
+    if (!_cidadeOk(lead.municipio, cidadeRetornada)) {
+      _cacheSet(chave, { lat: null });
+      return null;
+    }
     const coords = { lat, lon };
     _cacheSet(chave, coords);
     return coords;
@@ -314,10 +333,10 @@ async function _coordsPorEndereco(lead) {
 }
 
 // Fallback: por CEP via AwesomeAPI (precisão a nível de CEP/quadra).
-async function _coordsPorCep(cep) {
+async function _coordsPorCep(cep, municipio) {
   const limpo = (cep || '').replace(/\D/g, '');
   if (limpo.length !== 8) return null;
-  const chave = 'pm_cep_' + limpo;
+  const chave = 'pm2_cep_' + limpo;
   const cached = _cacheGet(chave);
   if (cached !== null) return cached.lat ? cached : null;
 
@@ -326,6 +345,11 @@ async function _coordsPorCep(cep) {
     if (!r.ok) { _cacheSet(chave, { lat: null }); return null; }
     const d = await r.json();
     if (!d.lat || !d.lng) { _cacheSet(chave, { lat: null }); return null; }
+    // Rejeita se o CEP pertencer a uma cidade diferente
+    if (!_cidadeOk(municipio, d.city)) {
+      _cacheSet(chave, { lat: null });
+      return null;
+    }
     const coords = { lat: parseFloat(d.lat), lon: parseFloat(d.lng) };
     if (isNaN(coords.lat) || isNaN(coords.lon)) {
       _cacheSet(chave, { lat: null }); return null;
@@ -337,7 +361,7 @@ async function _coordsPorCep(cep) {
 
 // Resolve em duas etapas: tenta endereço completo, cai pro CEP se falhar
 async function _resolverCoords(lead) {
-  return (await _coordsPorEndereco(lead)) || (await _coordsPorCep(lead.cep));
+  return (await _coordsPorEndereco(lead)) || (await _coordsPorCep(lead.cep, lead.municipio));
 }
 
 // Executa worker em até N items simultâneos
