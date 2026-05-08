@@ -7,7 +7,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import RedirectResponse
 from sqlalchemy import text
 
-from auth import NotAdminException, NotAuthenticatedException, hash_senha
+from auth import NotAdminException, NotAuthenticatedException, TrocarSenhaException, hash_senha
 from database import engine
 from routers.admin import router as admin_router
 from routers.api import router as api_router
@@ -19,15 +19,21 @@ def _bootstrap_usuarios():
     with engine.connect() as conn:
         conn.execute(text("""
             CREATE TABLE IF NOT EXISTS usuario (
-                id         UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
-                email      VARCHAR(255) UNIQUE NOT NULL,
-                nome       VARCHAR(100) NOT NULL,
-                senha_hash VARCHAR(200) NOT NULL,
-                role       VARCHAR(10)  NOT NULL DEFAULT 'user'
-                                        CHECK (role IN ('admin', 'user')),
-                ativo      BOOLEAN      NOT NULL DEFAULT true,
-                criado_em  TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+                id           UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+                email        VARCHAR(255) UNIQUE NOT NULL,
+                nome         VARCHAR(100) NOT NULL,
+                senha_hash   VARCHAR(200) NOT NULL,
+                role         VARCHAR(10)  NOT NULL DEFAULT 'user'
+                                          CHECK (role IN ('admin', 'user')),
+                ativo        BOOLEAN      NOT NULL DEFAULT true,
+                trocar_senha BOOLEAN      NOT NULL DEFAULT true,
+                criado_em    TIMESTAMPTZ  NOT NULL DEFAULT NOW()
             )
+        """))
+        # Migração: garante coluna em tabelas criadas antes desta versão
+        conn.execute(text("""
+            ALTER TABLE usuario
+            ADD COLUMN IF NOT EXISTS trocar_senha BOOLEAN NOT NULL DEFAULT true
         """))
         conn.commit()
 
@@ -71,6 +77,11 @@ async def not_authenticated_handler(request: Request, exc: NotAuthenticatedExcep
 @app.exception_handler(NotAdminException)
 async def not_admin_handler(request: Request, exc: NotAdminException):
     return RedirectResponse(url="/", status_code=302)
+
+
+@app.exception_handler(TrocarSenhaException)
+async def trocar_senha_handler(request: Request, exc: TrocarSenhaException):
+    return RedirectResponse(url="/trocar-senha", status_code=302)
 
 
 app.include_router(auth_router)

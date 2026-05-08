@@ -24,6 +24,10 @@ class NotAdminException(Exception):
     pass
 
 
+class TrocarSenhaException(Exception):
+    pass
+
+
 def hash_senha(senha: str) -> str:
     return pwd_context.hash(senha)
 
@@ -55,17 +59,33 @@ def get_current_user(
     if not email:
         return None
     row = db.execute(
-        text("SELECT id, email, nome, role, ativo FROM usuario WHERE email = :email"),
+        text("SELECT id, email, nome, role, ativo, trocar_senha FROM usuario WHERE email = :email"),
         {"email": email},
     ).fetchone()
     if not row or not row.ativo:
         return None
-    return {"id": str(row.id), "email": row.email, "nome": row.nome, "role": row.role}
+    return {
+        "id": str(row.id),
+        "email": row.email,
+        "nome": row.nome,
+        "role": row.role,
+        "trocar_senha": row.trocar_senha,
+    }
+
+
+def require_login_raw(user: Optional[dict] = Depends(get_current_user)) -> dict:
+    """Exige autenticação mas não bloqueia usuários com troca de senha pendente."""
+    if user is None:
+        raise NotAuthenticatedException()
+    return user
 
 
 def require_login(user: Optional[dict] = Depends(get_current_user)) -> dict:
+    """Exige autenticação e redireciona para troca de senha se necessário."""
     if user is None:
         raise NotAuthenticatedException()
+    if user.get("trocar_senha"):
+        raise TrocarSenhaException()
     return user
 
 
