@@ -10,7 +10,9 @@ Apenas operações de leitura (GET) são executadas — nunca POST/PUT/DELETE.
 import logging
 import re
 import time
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
+
+BRT = timezone(timedelta(hours=-3))
 
 import requests
 from sqlalchemy import text
@@ -325,8 +327,11 @@ def ultima_sync(db: Session) -> dict | None:
     ).first()
     if not row:
         return None
+    concluida_em = row.concluida_em
+    if concluida_em and concluida_em.tzinfo is not None:
+        concluida_em = concluida_em.astimezone(BRT)
     return {
-        "concluida_em":   row.concluida_em,
+        "concluida_em":   concluida_em,
         "ultima_versao":  row.ultima_versao,
         "total_clientes": row.total_clientes,
         "novos":          row.novos,

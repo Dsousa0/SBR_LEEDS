@@ -1,8 +1,12 @@
+from datetime import timezone, timedelta
+
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import text
 from sqlalchemy.orm import Session
+
+BRT = timezone(timedelta(hours=-3))
 
 from auth import hash_senha, require_admin
 from database import get_db
@@ -22,7 +26,7 @@ def _listar_usuarios(db: Session) -> list:
             "nome": r.nome,
             "role": r.role,
             "ativo": r.ativo,
-            "criado_em": r.criado_em.strftime("%d/%m/%Y") if r.criado_em else "—",
+            "criado_em": r.criado_em.astimezone(BRT).strftime("%d/%m/%Y") if r.criado_em and r.criado_em.tzinfo else (r.criado_em.strftime("%d/%m/%Y") if r.criado_em else "—"),
         }
         for r in rows
     ]
