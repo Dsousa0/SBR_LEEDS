@@ -192,10 +192,40 @@ async def buscar_html(
         "vendedor": l.vendedor,
     } for l in leads_mapa], ensure_ascii=False).replace("</", "<\\/")
 
+    # JSON completo dos leads da página atual — usado pelo modal de detalhes
+    pagina_json = json.dumps([{
+        "cnpj": l.cnpj,
+        "razao_social": l.razao_social,
+        "nome_fantasia": l.nome_fantasia,
+        "cnae_principal": l.cnae_principal,
+        "cnae_descricao": l.cnae_descricao,
+        "tipo_logradouro": l.tipo_logradouro,
+        "logradouro": l.logradouro,
+        "numero": l.numero,
+        "complemento": l.complemento,
+        "bairro": l.bairro,
+        "cep": l.cep,
+        "uf": l.uf,
+        "municipio": l.municipio,
+        "ddd_1": l.ddd_1,
+        "telefone_1": l.telefone_1,
+        "ddd_2": l.ddd_2,
+        "telefone_2": l.telefone_2,
+        "email": l.email,
+        "situacao": l.situacao,
+        "porte": l.porte,
+        "capital_social": l.capital_social,
+        "eh_cliente": l.eh_cliente,
+        "vendedor": l.vendedor,
+        "ultima_compra_em": l.ultima_compra_em.strftime("%d/%m/%Y") if l.ultima_compra_em else None,
+        "dias_sem_compra": l.dias_sem_compra,
+    } for l in resultado.items], ensure_ascii=False).replace("</", "<\\/")
+
     return templates.TemplateResponse("partials/resultados.html", {
         "request": request,
         "resultado": resultado,
         "leads_json": leads_json,
+        "pagina_json": pagina_json,
         "total_no_mapa": len(leads_mapa),
         "limite_mapa": LIMITE_MAPA,
     })
