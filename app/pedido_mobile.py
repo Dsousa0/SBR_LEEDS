@@ -77,11 +77,13 @@ def _buscar_pagina(versao: int, page: int, endpoint: str = ENDPOINT) -> dict:
                 timeout=TIMEOUT_SEGUNDOS,
                 headers={"Accept": "application/json"},
             )
-            # API retorna 404 quando não há clientes alterados desde a versão.
-            # Tratamos como resposta vazia (sucesso, 0 alterações).
+            # 404 → sem alterações desde essa versão (sucesso, 0 registros)
             if r.status_code == 404:
                 logger.info("Sem alterações desde a versão %d (HTTP 404)", versao)
                 return {**_RESPOSTA_VAZIA, "ultimaVersao": versao}
+            # 400 → versão inválida ou fora do range da API; sinaliza para o chamador
+            if r.status_code == 400:
+                raise SyncError(f"VERSAO_INVALIDA:{versao}")
             r.raise_for_status()
             return r.json()
         except requests.RequestException as e:
@@ -145,13 +147,32 @@ _UPDATE_ULTIMA_COMPRA = text("""
 def _sincronizar_pedidos(db: Session) -> None:
     """Percorre pedidointegracao/versao e atualiza ultima_compra_em por cliente.
     Usa versionamento incremental — apenas pedidos alterados desde o último sync.
+    Se a API rejeitar a versão armazenada (400), reinicia do zero automaticamente.
     """
     versao_inicial = _versao_pedidos(db)
     nova_versao = versao_inicial
     page = 1
+    resetado = False
 
     while True:
-        data = _buscar_pagina(versao_inicial, page, ENDPOINT_PEDIDOS)
+        try:
+            data = _buscar_pagina(versao_inicial, page, ENDPOINT_PEDIDOS)
+        except SyncError as e:
+            if "VERSAO_INVALIDA" in str(e) and not resetado:
+                logger.warning(
+                    "Versão %d rejeitada pela API de pedidos (400). "
+                    "Reiniciando sync completo desde versão 0.",
+                    versao_inicial,
+                )
+                versao_inicial = 0
+                nova_versao = 0
+                page = 1
+                resetado = True
+                _salvar_versao_pedidos(db, 0)
+                db.commit()
+                data = _buscar_pagina(versao_inicial, page, ENDPOINT_PEDIDOS)
+            else:
+                raise
         nova_versao = max(nova_versao, data.get("ultimaVersao") or 0)
         total_paginas = data.get("totalPaginas") or 0
         pedidos = data.get("dados") or []
