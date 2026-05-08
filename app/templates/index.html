@@ -23,6 +23,9 @@
             hx-indicator="#spinner"
             class="space-y-4">
 
+        <!-- Segmento fixo: farmácias e drogarias -->
+        <input type="hidden" name="segmento" value="farmacia" />
+
         <!-- Estado -->
         <div>
           <label class="block text-xs font-medium text-[#888] mb-1 uppercase tracking-wide">Estado</label>
@@ -46,36 +49,6 @@
                   class="w-full rounded-lg bg-[#222] border border-[#3a3a3a] px-3 py-2 text-sm text-[#e5e5e5] focus:outline-none focus:border-orange-500 transition-colors">
             <option value="">Todos os municípios</option>
           </select>
-        </div>
-
-        <!-- Segmento (atalhos) -->
-        <div>
-          <label class="block text-xs font-medium text-[#888] mb-2 uppercase tracking-wide">Segmento</label>
-          <div class="grid grid-cols-2 gap-1.5" id="atalhos">
-            {% for a in atalhos %}
-            <button type="button"
-                    data-segmento="{{ a.segmento }}"
-                    onclick="selecionarSegmento(this)"
-                    class="atalho-btn text-xs px-2 py-1.5 rounded-lg border border-[#3a3a3a] text-[#aaa] hover:border-orange-500 hover:text-orange-500 transition-colors text-left truncate">
-              {{ a.descricao }}
-            </button>
-            {% endfor %}
-          </div>
-          <input type="hidden" name="segmento" id="input-segmento" value="" />
-        </div>
-
-        <!-- CNAE manual -->
-        <div>
-          <label class="block text-xs font-medium text-[#888] mb-1 uppercase tracking-wide">CNAE (busca livre)</label>
-          <input type="text" id="busca-cnae" placeholder="Ex: farmácia, padaria..."
-                 class="w-full rounded-lg bg-[#222] border border-[#3a3a3a] px-3 py-2 text-sm text-[#e5e5e5] placeholder-[#555] focus:outline-none focus:border-orange-500 transition-colors"
-                 hx-get="/cnaes-options"
-                 hx-trigger="keyup changed delay:400ms"
-                 hx-target="#lista-cnaes"
-                 hx-include="[id='busca-cnae']"
-                 name="q" />
-          <div id="lista-cnaes" class="mt-1 space-y-0.5 max-h-32 overflow-y-auto"></div>
-          <input type="hidden" name="cnaes" id="input-cnaes" value="" />
         </div>
 
         <!-- Apenas ativas -->
@@ -166,74 +139,6 @@
 
 {% block scripts %}
 <script>
-// ------- Segmentos -------
-function selecionarSegmento(btn) {
-  const segmento = btn.dataset.segmento;
-  const inputSeg = document.getElementById('input-segmento');
-  const inputCnaes = document.getElementById('input-cnaes');
-
-  if (inputSeg.value === segmento) {
-    inputSeg.value = '';
-    btn.classList.remove('border-orange-500', 'text-orange-500', 'bg-[#222]', 'font-semibold');
-  } else {
-    document.querySelectorAll('.atalho-btn').forEach(b =>
-      b.classList.remove('border-orange-500', 'text-orange-500', 'bg-[#222]', 'font-semibold'));
-    inputSeg.value = segmento;
-    inputCnaes.value = '';
-    btn.classList.add('border-orange-500', 'text-orange-500', 'bg-[#222]', 'font-semibold');
-  }
-}
-
-// ------- CNAEs via autocomplete -------
-function selecionarCnae(codigo, descricao) {
-  const input = document.getElementById('input-cnaes');
-  const busca = document.getElementById('busca-cnae');
-  const lista = document.getElementById('lista-cnaes');
-  const segInput = document.getElementById('input-segmento');
-
-  segInput.value = '';
-  document.querySelectorAll('.atalho-btn').forEach(b =>
-    b.classList.remove('border-orange-500', 'text-orange-500', 'bg-[#222]', 'font-semibold'));
-
-  const atuais = input.value ? input.value.split(',').filter(Boolean) : [];
-  if (!atuais.includes(codigo)) {
-    atuais.push(codigo);
-    input.value = atuais.join(',');
-  }
-  busca.value = '';
-  lista.innerHTML = '';
-
-  renderCnaeTags();
-}
-
-function renderCnaeTags() {
-  const input = document.getElementById('input-cnaes');
-  const container = document.getElementById('cnae-tags');
-  if (!container) return;
-  const cnaes = input.value ? input.value.split(',').filter(Boolean) : [];
-  container.innerHTML = cnaes.map(c =>
-    `<span class="inline-flex items-center gap-1 bg-[#2e2e2e] text-orange-400 text-xs px-2 py-0.5 rounded-full border border-[#3a3a3a]">
-      ${c}
-      <button type="button" onclick="removerCnae('${c}')" class="hover:text-white font-bold">×</button>
-    </span>`
-  ).join('');
-}
-
-function removerCnae(codigo) {
-  const input = document.getElementById('input-cnaes');
-  const atuais = input.value ? input.value.split(',').filter(Boolean) : [];
-  input.value = atuais.filter(c => c !== codigo).join(',');
-  renderCnaeTags();
-}
-
-document.addEventListener('DOMContentLoaded', () => {
-  const tagsDiv = document.createElement('div');
-  tagsDiv.id = 'cnae-tags';
-  tagsDiv.className = 'flex flex-wrap gap-1 mt-1';
-  document.getElementById('input-cnaes').insertAdjacentElement('afterend', tagsDiv);
-});
-
-// ------- Exportação -------
 function exportar(formato) {
   const form = document.getElementById('filtros');
   const fd = new FormData(form);
